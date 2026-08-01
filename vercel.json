@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "",
+  "outputDirectory": "",
+  "framework": null,
+  "cleanUrls": true,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}
