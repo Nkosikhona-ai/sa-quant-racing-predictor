@@ -1950,59 +1950,43 @@ def main():
                     if pred_item.value_bet:
                         v_bets_all.append((r_k, pred_item))
 
-            vb_list_html = ""
+            vb_items = []
             for r_k, vb in v_bets_all:
-                vb_list_html += f"""
-                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.15); border-radius:6px; padding:8px 10px; font-size:0.8rem; color:var(--foreground);">
-                  <div>
-                    <span style="font-weight:900; color:var(--green-win); margin-right:4px;">R{r_k}</span>
-                    <span style="font-weight:700;">#{vb.draw} {vb.horse}</span>
-                  </div>
-                  <div style="text-align:right;">
-                    <div style="font-weight:700; color:var(--gold);">{vb.odds:.2f}</div>
-                    <div style="font-size:9px; color:var(--green-win); font-family:'JetBrains Mono',monospace;">{vb.ev:+.2f} EV</div>
-                  </div>
-                </div>
-                """
+                vb_items.append(
+                    f'<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.15); border-radius:6px; padding:8px 10px; font-size:0.8rem; color:var(--foreground);">'
+                    f'<div><span style="font-weight:900; color:var(--green-win); margin-right:4px;">R{r_k}</span><span style="font-weight:700;">#{vb.draw} {vb.horse}</span></div>'
+                    f'<div style="text-align:right;"><div style="font-weight:700; color:var(--gold);">{vb.odds:.2f}</div><div style="font-size:9px; color:var(--green-win); font-family:\'JetBrains Mono\',monospace;">{vb.ev:+.2f} EV</div></div>'
+                    f'</div>'
+                )
 
-            if not vb_list_html:
-                vb_list_html = '<div style="color:var(--muted-foreground); font-size:0.8rem; text-align:center; padding:1rem;">No value bets detected yet. Generate predictions to find value opportunities.</div>'
+            if not vb_items:
+                vb_content = '<div style="color:var(--muted-foreground); font-size:0.8rem; text-align:center; padding:1rem;">No value bets detected yet. Generate predictions to find value opportunities.</div>'
+            else:
+                vb_content = "".join(vb_items)
 
-            st.markdown(f"""
-            <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1rem;">
-              <div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">
-                ⭐ DETECTED VALUE BETS
-              </div>
-              <div style="display:flex; flex-direction:column; gap:8px;">
-                {vb_list_html}
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+            vb_panel_html = (
+                f'<div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1rem;">'
+                f'<div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">⭐ DETECTED VALUE BETS</div>'
+                f'<div style="display:flex; flex-direction:column; gap:8px;">{vb_content}</div>'
+                f'</div>'
+            )
+            st.markdown(vb_panel_html, unsafe_allow_html=True)
 
             # 3. Permutations / Meeting Stats Summary Card
             total_races_run = len(all_results)
             tot_value_bets = len(v_bets_all)
-            st.markdown(f"""
-            <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem;">
-              <div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">
-                📊 MEETING STATS SUMMARY
-              </div>
-              <div style="display:flex; flex-direction:column; gap:8px; font-size:0.82rem;">
-                <div style="display:flex; justify-content:space-between;">
-                  <span style="color:var(--muted-foreground);">Total Races Analyzed</span>
-                  <span style="font-weight:700; color:#fff;">{total_races_run} of 8</span>
-                </div>
-                <div style="display:flex; justify-content:space-between;">
-                  <span style="color:var(--muted-foreground);">Total Value Bets Detected</span>
-                  <span style="font-weight:700; color:var(--green-win);">{tot_value_bets}</span>
-                </div>
-                <div style="display:flex; justify-content:space-between;">
-                  <span style="color:var(--muted-foreground);">Meeting Avg Expected Value</span>
-                  <span style="font-weight:700; color:{'var(--green-win)' if meeting_avg_ev > 0 else 'var(--red-loss)'};">{meeting_avg_ev:+.3f}</span>
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
+            ev_color_class = "var(--green-win)" if meeting_avg_ev > 0 else "var(--red-loss)"
+            summary_panel_html = (
+                f'<div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem;">'
+                f'<div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">📊 MEETING STATS SUMMARY</div>'
+                f'<div style="display:flex; flex-direction:column; gap:8px; font-size:0.82rem;">'
+                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Total Races Analyzed</span><span style="font-weight:700; color:#fff;">{total_races_run} of 8</span></div>'
+                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Total Value Bets Detected</span><span style="font-weight:700; color:var(--green-win);">{tot_value_bets}</span></div>'
+                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Meeting Avg Expected Value</span><span style="font-weight:700; color:{ev_color_class};">{meeting_avg_ev:+.3f}</span></div>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(summary_panel_html, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
