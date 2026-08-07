@@ -903,7 +903,7 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
         st.session_state.predictions  = []   # Clear stale predictions from previous runs
         st.session_state.all_results  = {}
         st.session_state.odds_map     = {
-            getattr(h, "horse", "Unknown"): getattr(h, "forecast_odds", 0.0)
+            getattr(h, "horse", "Unknown"): getattr(h, "market_odds", getattr(h, "forecast_odds", 0.0))
             for h in horses
         }
         return True
@@ -1047,7 +1047,7 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
     st.session_state.predictions  = []   # Clear stale predictions from previous runs
     st.session_state.all_results  = {}
     st.session_state.odds_map     = {
-        getattr(h, "horse", "Unknown"): getattr(h, "forecast_odds", 0.0)
+        getattr(h, "horse", "Unknown"): getattr(h, "market_odds", getattr(h, "forecast_odds", 0.0))
         for h in valid_horses
     }
     st.success(
@@ -1146,8 +1146,12 @@ def render_race_preview(horses: list[Horse], extraction: ExtractionResult):
 def render_odds_input(horses: list[Horse]) -> dict:
     """Let user enter/override decimal odds for each horse. Returns odds_map."""
 
-    st.markdown('<div class="section-title">💰 Enter Odds (decimal format)</div>', unsafe_allow_html=True)
-    st.caption("Leave 0 to let the model estimate fair odds from probability.")
+    st.markdown('<div class="section-title">💰 Market Odds (decimal format)</div>', unsafe_allow_html=True)
+    st.caption(
+        "Pre-populated from the ComputaForm F/B forecast. "
+        "Edit any value to use live market odds (e.g. from Hollywood Bets). "
+        "Leave 0 to let the model estimate fair odds from probability."
+    )
 
     existing = st.session_state.odds_map
     odds_map = {}
@@ -1163,12 +1167,23 @@ def render_odds_input(horses: list[Horse]) -> dict:
     horse_list   = sorted(valid_horses, key=lambda h: h.draw)
     rows         = [horse_list[idx:idx+cols_per_row] for idx in range(0, len(horse_list), cols_per_row)]
 
+    # Include the file ID in the key namespace so Streamlit resets all
+    # number_input widgets when a new PDF is uploaded (avoids stale cached values).
+    file_slot = str(st.session_state.get("_last_file_id", "demo")).replace(" ", "_")
+
     i = 0
     for row in rows:
         cols = st.columns(cols_per_row)
         for col, horse in zip(cols, row):
             with col:
-                default_val = float(existing.get(horse.horse, getattr(horse, "forecast_odds", 0.0)) or 0.0)
+                # Prefer user's previously-entered value, then market_odds (pre-populated
+                # from the PDF), then forecast_odds, then 0.
+                default_val = float(
+                    existing.get(
+                        horse.horse,
+                        getattr(horse, "market_odds", getattr(horse, "forecast_odds", 0.0))
+                    ) or 0.0
+                )
                 val = st.number_input(
                     label     = f"#{horse.draw} {horse.horse}",
                     min_value = 0.0,
@@ -1176,9 +1191,13 @@ def render_odds_input(horses: list[Horse]) -> dict:
                     value     = default_val,
                     step      = 0.10,
                     format    = "%.2f",
-                    key       = f"odds_{i}_{horse.draw}_{horse.horse.replace(' ','_')}",
+                    key       = f"odds_{file_slot}_{i}_{horse.draw}_{horse.horse.replace(' ','_')}",
                 )
                 odds_map[horse.horse] = val
+                # Show the original ComputaForm F/B forecast as a reference hint
+                fb_str = getattr(horse, "fb_odds_str", "")
+                if fb_str:
+                    st.caption(f"📋 CF Forecast: {fb_str}")
                 i += 1
 
     st.session_state.odds_map.update(odds_map)  # Bug 6: merge, don't overwrite (preserves other races' odds)

@@ -61,3 +61,5 @@ htmlcov/
 
 # Node
 node_modules/
+
+.vercel

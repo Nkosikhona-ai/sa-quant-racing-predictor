@@ -58,6 +58,12 @@ _RACE_PAGE_HEADER_RE = re.compile(r"^RACE\s+(\d{1,2})\s+", re.IGNORECASE)
 # Must be: 1-2 digit number, 1+ spaces, all-caps name (letters, spaces, apostrophes, &, -)
 _HORSE_ENTRY_RE = re.compile(r"^\s*(\d{1,2})\s{1,}([A-Z][A-Z\s'’‘&\-\.\(\)]{2,})\s*$")
 
+# ComputaForm F/B odds: fractional notation with '/' or '-' separator.
+# Matches standalone lines (e.g. "15/10", "4/1", "33-10") OR the
+# trailing token on a comment line (e.g. "Fair debut-can score 15-10").
+# Groups: (numerator, denominator)
+_FB_ODDS_RE = re.compile(r"(?:^|\s)(\d{1,4})[/\-](\d{1,2})\s*$")
+
 # Bad horse name tokens (to filter false positives).
 # NOTE: Do NOT add common English words that can begin horse names (e.g. NEVER, WINTER).
 _BAD_NAME_TOKENS = frozenset([
@@ -112,6 +118,15 @@ class Horse:
     race_class: Optional[str] = None
     scratched: bool = False
     is_apprentice: bool = False
+
+    # ComputaForm F/B odds — populated automatically during PDF extraction.
+    # fb_odds_str : raw fractional string from the PDF (e.g. "15/10", "4/1").
+    # forecast_odds : decimal equivalent (e.g. 2.50).  Never changed by user.
+    # market_odds   : editable decimal; starts == forecast_odds.
+    #                 The UI writes the user's live adjustments here.
+    #                 The prediction engine uses this value via odds_map.
+    fb_odds_str: str = ""
+    market_odds: float = 0.0
 
     @property
     def form_figures(self) -> List[int]:
@@ -174,6 +189,65 @@ def parse_odds(odds_str: str) -> float:
         return float(s)
     except ValueError:
         return 0.0
+
+
+def fractional_to_decimal(frac_str: str) -> float:
+    """Convert a ComputaForm fractional odds string to European decimal odds.
+
+    Handles both '/' and '-' separators.  Returns 0.0 if unparseable.
+
+    Examples::
+
+        fractional_to_decimal("15/10") -> 2.50
+        fractional_to_decimal("4/1")   -> 5.00
+        fractional_to_decimal("7/10")  -> 1.70
+        fractional_to_decimal("9/2")   -> 5.50
+        fractional_to_decimal("10/1")  -> 11.00
+        fractional_to_decimal("15-10") -> 2.50
+        fractional_to_decimal("99/1")  -> 100.00
+    """
+    if not frac_str:
+        return 0.0
+    s = str(frac_str).strip()
+    m = re.match(r"^(\d{1,4})[/\-](\d{1,2})$", s)
+    if not m:
+        return 0.0
+    num = float(m.group(1))
+    den = float(m.group(2))
+    if den == 0:
+        return 0.0
+    return round(num / den + 1.0, 4)
+
+
+def _extract_fb_odds(block_lines: List[str]) -> str:
+    """Scan a horse block for a ComputaForm F/B odds string.
+
+    Searches block_lines (bottom-up, skipping the first line which is the
+    horse name) for a standalone fractional odds token such as ``15/10``,
+    ``4/1``, ``33-10``, or as the trailing token on a comment/description
+    line such as ``"Fair debut-can score 15-10"``.
+
+    Returns the raw fractional string (e.g. ``"15/10"``) or ``""``.
+    """
+    # Standalone line: just a fraction, nothing else
+    _standalone = re.compile(r"^(\d{1,4})[/\-](\d{1,2})$")
+    # Trailing token on a comment line
+    _trailing   = re.compile(r"(?:^|\s)(\d{1,4})[/\-](\d{1,2})\s*$")
+
+    # Scan from the bottom of the block upwards (odds appear near the end)
+    for line in reversed(block_lines[1:]):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        m = _standalone.match(stripped)
+        if m:
+            return stripped  # e.g. "33/10"
+        m = _trailing.search(stripped)
+        if m:
+            # Reconstruct with canonical '/' separator
+            raw = f"{m.group(1)}/{m.group(2)}"
+            return raw
+    return ""
 
 
 def extract_positions(form_str: str) -> Tuple[int, int, int]:
@@ -419,9 +493,14 @@ def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None)
 
         f3_pct = int((life_wins + life_thirds) / life_runs * 100) if life_runs else 0
 
+        # ── Extract ComputaForm F/B odds from this horse's block ────────────
+        fb_str = _extract_fb_odds(block_lines)
+        dec_odds = fractional_to_decimal(fb_str) if fb_str else 0.0
+
         logger.info(
             f"[INFO]   Race {race_num} #{draw_confirmed:02d} {name:<30} "
-            f"J:{jockey:<22} KGs:{weight:.1f} MR:{mr}"
+            f"J:{jockey:<22} KGs:{weight:.1f} MR:{mr} "
+            f"F/B:{fb_str or 'N/A'} ({dec_odds:.2f})"
         )
 
         horses.append(Horse(
@@ -431,7 +510,7 @@ def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None)
             weight=weight,
             jockey=jockey,
             trainer="Unknown",  # trainer not in structured section
-            forecast_odds=0.0,
+            forecast_odds=dec_odds,   # decimal equivalent of ComputaForm F/B
             form_string="",
             runs=life_runs,
             wins=life_wins,
@@ -445,6 +524,8 @@ def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None)
             comment_history=[],
             race=race_num,
             is_apprentice=is_apprentice,
+            fb_odds_str=fb_str,       # raw string e.g. "15/10"
+            market_odds=dec_odds,     # editable copy; UI may update this
         ))
 
     logger.info(f"[INFO] Page {page_num}: Runner Count = {len(horses)}")
@@ -574,6 +655,7 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
     try:
         # ── Step 1: Extract and filter candidate pages ───────────────────────
         candidate_pages = []
+        all_page_lines: List[List[str]] = []   # ALL non-skipped pages (for cross-ref)
         use_fitz = False
         try:
             import fitz
@@ -584,6 +666,14 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
                 if page_num_0 >= _MAX_PAGES:
                     break
                 text = page.get_text("text") or ""
+                if not raw_text_sample and text.strip():
+                    raw_text_sample = text[:3000]
+
+                lines = text.splitlines()
+                # Always collect ALL page lines for the Step 4b F/B cross-reference
+                # pass — even skipped pages can contain the overview F/B table.
+                all_page_lines.append(lines)
+
                 skip_reason = _page_should_skip(text)
                 if skip_reason:
                     reason = f"Page {page_num_0 + 1}: Skipped ({skip_reason})"
@@ -592,7 +682,6 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
                     pages_skipped += 1
                     continue
 
-                lines = text.splitlines()
                 race_num_header = None
                 for line in lines[:5]:
                     m = _RACE_PAGE_HEADER_RE.match(line.strip())
@@ -696,6 +785,8 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
                             logger.info(f"[INFO] {reason}")
                             skipped_page_reasons.append(reason)
                             pages_skipped += 1
+                        # Always collect lines for the cross-reference pass
+                        all_page_lines.append(lines)
             except Exception as e2:
                 logger.warning(f"pdfplumber also failed: {e2}")
 
@@ -739,7 +830,15 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
 
         # ── Step 4: OCR fallback (only when nothing extracted) ───────────────
         if not races_dict:
-            if OCR_AVAILABLE:
+            is_results_sheet = any(
+                kw in raw_text_sample.upper()
+                for kw in ["OFFICIAL RACE RESULTS", "WINNER & TAB", "POOL RESULTS", "TOTE FAVOURITE"]
+            )
+            if is_results_sheet:
+                msg = "[WARNING] Uploaded PDF is a Results Sheet ('Official Race Results'), not an upcoming ComputaForm Race Card. Please upload an upcoming race card PDF."
+                logger.warning(msg)
+                warnings.append(msg)
+            elif OCR_AVAILABLE:
                 logger.info("[INFO] No horses from text — attempting OCR fallback")
                 ocr_page_texts = extract_with_ocr(file_bytes)
                 for i, text in enumerate(ocr_page_texts):
@@ -754,6 +853,63 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
         # ── Step 4: Sort runners within each race by draw ───────────────────
         for rn in races_dict:
             races_dict[rn].sort(key=lambda h: h.draw)
+
+        # ── Step 4b: Overview-page authoritative F/B override ────────────────
+        # The ComputaForm overview page ("FIELDS, RATINGS FOR ...") contains the
+        # definitive bookmaker board prices in the F/B column.  The per-horse
+        # bio-card block may contain historical or ante-post odds that differ.
+        # Strategy: scan ALL pages for the overview-table pattern and ALWAYS
+        # overwrite fb_odds_str / market_odds with the overview value.  If no
+        # overview match is found, the bio-card value already extracted is kept.
+        #
+        # Overview layout (consecutive lines):
+        #   HORSE NAME <weight>        ← all-caps horse name
+        #   <form marks>               ← e.g. "XX \t" or "X \t"  (optional)
+        #   <comment text>             ← free text
+        #   <fraction>                 ← standalone "4/1" or "16/10" etc.
+        #
+        _standalone_re = re.compile(r"^(\d{1,4})[/\-](\d{1,2})$")
+        all_horses_flat = [h for rn in races_dict for h in races_dict[rn]]
+
+        _no_dr_prefix_re = re.compile(r"^\d+\s*[-–]\s*\d+\s+")  # "8 - 13 " prefix
+
+        for page_lines in all_page_lines:
+            for line_idx, line in enumerate(page_lines):
+                stripped = line.strip()
+                stripped_up = stripped.upper()
+                # Remove optional NO-DR prefix (e.g. "8 - 13 ") before matching
+                stripped_core = _no_dr_prefix_re.sub("", stripped_up).strip()
+                for h in all_horses_flat:
+                    name_up = h.horse.upper()
+                    if not (stripped_up.startswith(name_up) or stripped_core.startswith(name_up)):
+                        continue
+                    # Form marks like 'X', 'XX', 'XXX' are all-caps but are NOT
+                    # horse names — don't stop on them.  Only bail if the line
+                    # looks like a real multi-word name (2+ words with letters)
+                    # AND is longer than 3 characters (not a single mark).
+                    _FORM_MARKS = frozenset({'X', 'XX', 'XXX', 'XXXX', 'STOP'})
+                    for ahead in page_lines[line_idx + 1: line_idx + 7]:
+                        a = ahead.strip()
+                        if not a:
+                            continue
+                        if _standalone_re.match(a):
+                            if a != h.fb_odds_str:
+                                logger.info(
+                                    f"[INFO] Overview override: {h.horse} "
+                                    f"{h.fb_odds_str!r} -> {a!r}"
+                                )
+                            h.fb_odds_str   = a
+                            h.forecast_odds = fractional_to_decimal(a)
+                            h.market_odds   = h.forecast_odds
+                            break
+                        # Stop scanning if we hit another horse name line
+                        # (all-caps, 2+ words, contains letters, not a form mark)
+                        words = a.split()
+                        if (a.isupper()
+                                and len(words) >= 2
+                                and a not in _FORM_MARKS
+                                and any(c.isalpha() for c in a)):
+                            break
 
         # ── Step 5: Validate ─────────────────────────────────────────────────
         races_dict = _validate_races(races_dict, warnings)
