@@ -22,7 +22,7 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # ─── OCR Dependencies (optional) ──────────────────────────────────────────────
 try:
@@ -161,6 +161,7 @@ class ExtractionResult:
     pages_read: int = 0
     pages_skipped: int = 0
     report: str = ""
+    races_meta: Dict[int, Dict[str, Any]] = field(default_factory=dict)
 
     @property
     def is_valid(self) -> bool:
@@ -318,6 +319,163 @@ def _page_should_skip(text: str) -> Optional[str]:
         if kw in text_upper:
             return kw
     return None
+
+
+def extract_race_metadata(all_page_lines: List[List[str]]) -> Dict[int, Dict[str, Any]]:
+    """Extract race metadata strictly tied to each race_number from ComputaForm PDF lines."""
+    races_meta: Dict[int, Dict[str, Any]] = {}
+
+    def get_meta(rn: int) -> Dict[str, Any]:
+        if rn not in races_meta:
+            races_meta[rn] = {
+                "venue": None,
+                "surface": None,
+                "distance": None,
+                "race_time": None,
+                "stake": None,
+                "race_number": rn,
+                "betting_leg": None,
+            }
+        return races_meta[rn]
+
+    full_text = "\n".join("\n".join(lines) for lines in all_page_lines)
+    meeting_venue = None
+
+    m_v = re.search(r"FIELDS,?\s+RATINGS\s+FOR\s+([A-Za-z\s]+)", full_text, re.IGNORECASE)
+    if m_v:
+        raw_v = m_v.group(1).strip()
+        parts = re.split(r"\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d)", raw_v, flags=re.IGNORECASE)
+        v = parts[0].strip()
+        v = re.sub(r"^(HOLLYWOODBETS|HWB|TAB)\s+", "", v, flags=re.IGNORECASE).strip()
+        v = re.sub(r"\s+(TURF|POLYTRACK|SAND|DIRT)$", "", v, flags=re.IGNORECASE).strip()
+        if v:
+            meeting_venue = v.title()
+
+    if not meeting_venue:
+        m_v2 = re.search(r"RACE\s+\d{1,2}\s+(?:HOLLYWOODBETS\s+)?([A-Za-z]+)", full_text, re.IGNORECASE)
+        if m_v2:
+            cand = m_v2.group(1).strip()
+            if cand.upper() in ("VAAL", "FAIRVIEW", "KENILWORTH", "TURFFONTEIN", "GREYVILLE", "SCOTTSVILLE", "DURBANVILLE"):
+                meeting_venue = cand.title()
+
+    # Pass 1: Parse overview page blocks
+    for lines in all_page_lines:
+        pg_text = "\n".join(lines)
+        if "FIELDS, RATINGS FOR" in pg_text or "12:15" in pg_text or "12:25" in pg_text or "12:45" in pg_text:
+            for i, line in enumerate(lines):
+                sline = line.strip()
+                if sline.isdigit() and 1 <= int(sline) <= 25:
+                    r_num = int(sline)
+                    meta = get_meta(r_num)
+                    if meeting_venue and not meta["venue"]:
+                        meta["venue"] = meeting_venue
+
+                    next_lines = [lines[j].strip() for j in range(i + 1, min(i + 7, len(lines)))]
+                    combined_block = " ".join(next_lines)
+
+                    m_time = re.search(r"\b(\d{1,2}:\d{2})\b", combined_block)
+                    if m_time and not meta["race_time"]:
+                        meta["race_time"] = m_time.group(1)
+
+                    m_stake = re.search(r"\b(R[\d,]+)\b", combined_block)
+                    if m_stake and not meta["stake"]:
+                        meta["stake"] = m_stake.group(1)
+
+                    m_dist = re.search(r"\b(\d{3,4})\s*m\b(?![a-zA-Z])", combined_block, re.IGNORECASE)
+                    if m_dist and not meta["distance"]:
+                        meta["distance"] = f"{m_dist.group(1)}m"
+
+                    m_surf = re.search(r"\b(TURF|POLYTRACK|SAND|DIRT)\b", combined_block, re.IGNORECASE)
+                    if m_surf and not meta["surface"]:
+                        meta["surface"] = m_surf.group(1).capitalize()
+
+                    legs = []
+                    for m in re.finditer(r"\bBIPOT\s*(?:LEG)?\s*(\d+)\b", combined_block, re.IGNORECASE):
+                        legs.append(f"Bipot Leg {m.group(1)}")
+                    for m in re.finditer(r"\b(?:PICK\s*6|PICK6)\s*(?:LEG)?\s*(\d+)\b", combined_block, re.IGNORECASE):
+                        legs.append(f"Pick 6 Leg {m.group(1)}")
+                    for m in re.finditer(r"\b(?:JACKPOT|JKPT)\s*(\d*)\s*(?:LEG)?\s*(\d+)\b", combined_block, re.IGNORECASE):
+                        j_n = f"{m.group(1)} " if m.group(1) else ""
+                        legs.append(f"Jackpot {j_n}Leg {m.group(2)}".replace("  ", " "))
+                    for m in re.finditer(r"\b(?:PLACE\s*ACCUMULATOR|P/?A)\s*(?:LEG)?\s*(\d+)\b", combined_block, re.IGNORECASE):
+                        legs.append(f"Place Accumulator Leg {m.group(1)}")
+
+                    if legs and not meta["betting_leg"]:
+                        seen = set()
+                        meta["betting_leg"] = ", ".join([l for l in legs if not (l in seen or seen.add(l))])
+
+    # Pass 2: Per-race detail pages for missing fields
+    for lines in all_page_lines:
+        rn = None
+        for l in lines[:5]:
+            m_hdr = re.search(r"^RACE\s+(\d{1,2})\b", l.strip(), re.IGNORECASE)
+            if m_hdr:
+                rn = int(m_hdr.group(1))
+                break
+
+        if not rn and lines:
+            first_line = lines[0].strip().upper()
+            if first_line in ("TURF", "POLYTRACK", "DIRT", "SAND"):
+                for l in lines[1:10]:
+                    if l.strip().isdigit() and 1 <= int(l.strip()) <= 25:
+                        rn = int(l.strip())
+                        break
+
+        if rn and 1 <= rn <= 25:
+            meta = get_meta(rn)
+            if meeting_venue and not meta["venue"]:
+                meta["venue"] = meeting_venue
+
+            pg_block = " ".join([l.strip() for l in lines[:35]])
+
+            if not meta["venue"]:
+                m_v = re.search(r"FIELDS,?\s+RATINGS\s+FOR\s+([A-Za-z\s]+)", pg_block, re.IGNORECASE)
+                if m_v:
+                    raw_v = m_v.group(1).strip()
+                    parts = re.split(r"\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|\d)", raw_v, flags=re.IGNORECASE)
+                    meta["venue"] = parts[0].strip().title()
+
+            if not meta["race_time"]:
+                m_time = re.search(r"\b(\d{1,2}:\d{2})\b", pg_block)
+                if m_time:
+                    meta["race_time"] = m_time.group(1)
+
+            if not meta["stake"]:
+                m_stake = re.search(r"\b(R[\d,]+)\b", pg_block)
+                if m_stake:
+                    meta["stake"] = m_stake.group(1)
+
+            if not meta["distance"]:
+                m_dist = re.search(r"\b(\d{3,4})\s*m\b(?![a-zA-Z])", pg_block, re.IGNORECASE)
+                if m_dist:
+                    meta["distance"] = f"{m_dist.group(1)}m"
+
+            if not meta["surface"]:
+                m_surf = re.search(r"\b(TURF|POLYTRACK|SAND|DIRT)\b", pg_block, re.IGNORECASE)
+                if m_surf:
+                    meta["surface"] = m_surf.group(1).capitalize()
+
+            if not meta["betting_leg"]:
+                legs = []
+                for m in re.finditer(r"\bBIPOT\s*(?:LEG)?\s*(\d+)\b", pg_block, re.IGNORECASE):
+                    legs.append(f"Bipot Leg {m.group(1)}")
+                for m in re.finditer(r"\b(?:PICK\s*6|PICK6)\s*(?:LEG)?\s*(\d+)\b", pg_block, re.IGNORECASE):
+                    legs.append(f"Pick 6 Leg {m.group(1)}")
+                for m in re.finditer(r"\b(?:JACKPOT|JKPT)\s*(\d*)\s*(?:LEG)?\s*(\d+)\b", pg_block, re.IGNORECASE):
+                    j_n = f"{m.group(1)} " if m.group(1) else ""
+                    legs.append(f"Jackpot {j_n}Leg {m.group(2)}".replace("  ", " "))
+                for m in re.finditer(r"\b(?:PLACE\s*ACCUMULATOR|P/?A)\s*(?:LEG)?\s*(\d+)\b", pg_block, re.IGNORECASE):
+                    legs.append(f"Place Accumulator Leg {m.group(1)}")
+
+                if legs:
+                    seen = set()
+                    meta["betting_leg"] = ", ".join([l for l in legs if not (l in seen or seen.add(l))])
+
+    cleaned_meta = {
+        r: meta for r, meta in races_meta.items()
+        if 1 <= r <= 25 and any(meta[k] for k in ("venue", "surface", "distance", "race_time", "stake", "betting_leg"))
+    }
+    return cleaned_meta
 
 
 
@@ -928,6 +1086,9 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
 
         confidence = min(len(all_horses) / 40.0, 1.0) if all_horses else 0.0
 
+        raw_races_meta = extract_race_metadata(all_page_lines)
+        races_meta = {r: raw_races_meta[r] for r in races_dict if r in raw_races_meta}
+
         return ExtractionResult(
             horses=all_horses,
             confidence=confidence,
@@ -936,6 +1097,7 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
             pages_read=pages_read,
             pages_skipped=pages_skipped,
             report=report,
+            races_meta=races_meta,
         )
 
     except Exception as e:

@@ -16,8 +16,7 @@ import logging
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
+
 
 from extractor import extract_from_pdf, get_demo_horses, Horse, ExtractionResult
 from predictor import predict, Prediction, run_race_v311_turffontein, compute_probability_v311_turffontein
@@ -401,12 +400,16 @@ def render_sidebar():
             reset_race_state()               # Wipe previous race data first
             st.session_state.demo_mode = demo_mode
             if demo_mode:
-                st.session_state.race_name = "Greyville R1 – 1200m (Demo)"
-                st.session_state.venue_selector = "Greyville"
+                st.session_state.race_name = "Fairview R1 – 1200m (Demo)"
+                st.session_state.venue_selector = "Fairview"
                 st.session_state.distance_selector = 1200
                 st.session_state.race_class_selector = "Stakes"
-                st.session_state.surface_selector = "Polytrack"
-                st.session_state.model_mode_selector = "Greyville Poly v3.13 ★"
+                st.session_state.surface_selector = "Turf"
+                st.session_state.races_meta = {
+                    1: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:15", "stake": "R80,000", "race_number": 1, "betting_leg": "Bipot Leg 1"},
+                    2: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:50", "stake": "R90,000", "race_number": 2, "betting_leg": "Bipot Leg 2"},
+                    3: {"venue": "Fairview", "surface": "Turf", "distance": "1400m", "race_time": "13:25", "stake": "R100,000", "race_number": 3, "betting_leg": "Place Accumulator Leg 1"},
+                }
 
         # 5. Prediction Engine Config & Track Parameters (in a clean collapsed expander to save sidebar space)
         with st.expander("⚙️ Engine & Track Config"):
@@ -481,47 +484,27 @@ def render_sidebar():
         all_races = st.session_state.get("all_races", {})
         all_results = st.session_state.get("all_results", {})
         if all_races:
-            st.markdown('<div style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.08em; margin: 0.75rem 0 0.4rem; text-transform: uppercase;">Races — 17 Jun 2026</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.08em; margin: 0.75rem 0 0.4rem; text-transform: uppercase;">Races</div>', unsafe_allow_html=True)
+            races_meta = st.session_state.get("races_meta", {})
             for r in sorted(all_races.keys()):
                 r_horses = all_races[r]
-                time_str = "12:00"
-                dist = 1200
-                type_str = "Stakes"
-                
-                # Fetch metadata in demo mode or parse
-                if st.session_state.demo_mode:
-                    greyville_meta = {
-                        1: {"time": "10:00", "dist": 1200, "type": "Stakes"},
-                        2: {"time": "12:05", "dist": 1200, "type": "MR 80 Handicap"},
-                        3: {"time": "12:40", "dist": 1400, "type": "Listed Stakes"},
-                    }
-                    meta = greyville_meta.get(r, {"time": f"12:{r*10}", "dist": 1400, "type": "MR 80 Handicap"})
-                    time_str = meta["time"]
-                    dist = meta["dist"]
-                    type_str = meta["type"]
-                else:
-                    if r_horses:
-                        first_h = r_horses[0]
-                        if hasattr(first_h, 'race_distance'):
-                            dist = first_h.race_distance
-                        elif hasattr(first_h, 'distance'):
-                            dist = first_h.distance
-                        elif hasattr(first_h, 'race_distance_str'):
-                            try:
-                                dist = int(first_h.race_distance_str.replace('m', ''))
-                            except:
-                                pass
-                        
-                        if hasattr(first_h, 'race_type'):
-                            type_str = first_h.race_type
-                        
+                r_meta = races_meta.get(r, {})
+                time_str = r_meta.get("race_time", "")
+                dist_val = r_meta.get("distance", "")
+
+                time_part = f"{time_str}" if time_str else ""
+                dist_part = f"({dist_val})" if dist_val else ""
+                header_line = f"R{r}"
+                if time_part or dist_part:
+                    header_line += f" · {time_part} {dist_part}".strip()
+
                 top_pred = all_results.get(r, [None])[0] if all_results else None
                 if top_pred:
                     prob = int(top_pred.probability * 100)
                     h_name = top_pred.horse.split(" ")[0]
-                    btn_label = f"R{r} · {time_str} ({dist}m)\n{type_str}\n🏆 {h_name} ({prob}%)"
+                    btn_label = f"{header_line}\n🏆 {h_name} ({prob}%)"
                 else:
-                    btn_label = f"R{r} · {time_str} ({dist}m)\n{type_str}\n{len(r_horses)} runners"
+                    btn_label = f"{header_line}\n{len(r_horses)} runners"
                     
                 isSelected = (r == st.session_state.current_race)
                 label_prefix = "👉 " if isSelected else ""
@@ -906,6 +889,11 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
             getattr(h, "horse", "Unknown"): getattr(h, "market_odds", getattr(h, "forecast_odds", 0.0))
             for h in horses
         }
+        st.session_state.races_meta = {
+            1: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:15", "stake": "R80,000", "race_number": 1, "betting_leg": "Bipot Leg 1"},
+            2: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:50", "stake": "R90,000", "race_number": 2, "betting_leg": "Bipot Leg 2"},
+            3: {"venue": "Fairview", "surface": "Turf", "distance": "1400m", "race_time": "13:25", "stake": "R100,000", "race_number": 3, "betting_leg": "Place Accumulator Leg 1"},
+        }
         return True
 
     if uploaded_file is None:
@@ -1039,6 +1027,8 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
     n_races    = len(all_races)
     total_h    = len(valid_horses)
 
+    st.session_state.races_meta = getattr(result, "races_meta", {})
+
     st.session_state.all_races    = all_races
     st.session_state.current_race = first_race
     st.session_state.horses       = list(all_races[first_race])  # Bug 4: copy
@@ -1055,6 +1045,47 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
         f"{n_races} race{'s' if n_races != 1 else ''} — showing Race {first_race}."
     )
     return True
+
+
+# ─── Dynamic Race Header Component ────────────────────────────────────────────
+
+def render_race_header(current_race: int):
+    """Render dynamic ComputaForm race header badges strictly tied to current_race."""
+    races_meta = st.session_state.get("races_meta", {})
+    meta = races_meta.get(current_race, {})
+
+    venue       = meta.get("venue")
+    surface     = meta.get("surface")
+    distance    = meta.get("distance")
+    race_time   = meta.get("race_time")
+    stake       = meta.get("stake")
+    betting_leg = meta.get("betting_leg")
+
+    badges = []
+    if venue:
+        badges.append(f'<span class="meta-chip">📍 <strong>{venue}</strong></span>')
+    if surface:
+        badges.append(f'<span class="meta-chip">🌱 {surface}</span>')
+    if distance:
+        badges.append(f'<span class="meta-chip">📏 {distance}</span>')
+    if race_time:
+        badges.append(f'<span class="meta-chip">🕛 {race_time}</span>')
+    if stake:
+        badges.append(f'<span class="meta-chip">💰 {stake}</span>')
+
+    # Race Number badge - strictly dynamic based on actual current_race
+    badges.append(f'<span class="meta-chip">🏁 Race {current_race}</span>')
+
+    if betting_leg:
+        badges.append(f'<span class="meta-chip">🎫 {betting_leg}</span>')
+
+    if badges:
+        html = f"""
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:1rem;">
+          {"".join(badges)}
+        </div>
+        """
+        st.markdown(html, unsafe_allow_html=True)
 
 
 # ─── Race Preview Section ─────────────────────────────────────────────────────
@@ -1476,52 +1507,6 @@ def render_exotics_intelligence(results: list, all_results: dict = None, current
         else:
             st.info("ℹ️ Generate predictions across all races in the meeting to view Pick 6, BiPot, and Jackpot permutations.")
 
-    # ── EV scatter plot
-    st.markdown('<div class="section-title" style="margin-top:0.5rem;">⚖️ EV vs Probability</div>', unsafe_allow_html=True)
-
-    ev_fig = go.Figure()
-
-    for p in predictions:
-        color = "#00e096" if p.value_bet else ("#5c9fff" if p.ev >= 0 else "#ff5c7a")
-        ev_fig.add_trace(go.Scatter(
-            x          = [p.probability * 100],
-            y          = [p.ev],
-            mode       = "markers+text",
-            marker     = dict(size=16, color=color, opacity=0.85,
-                              line=dict(width=1, color="rgba(255,255,255,0.2)")),
-            text       = [f"#{p.draw}"],
-            textfont   = dict(size=9, color="#f0f2ff"),
-            textposition = "top center",
-            name       = p.horse,
-            hovertemplate = (
-                f"<b>{p.horse}</b><br>"
-                f"Probability: {p.probability*100:.1f}%<br>"
-                f"EV: {p.ev:+.4f}<br>"
-                f"Odds: {p.odds:.2f}<extra></extra>"
-            ),
-            showlegend = False,
-        ))
-
-    # Zero EV line
-    ev_fig.add_hline(y=0.0, line_dash="dash", line_color="rgba(245,200,66,0.4)",
-                     annotation_text="Break-even", annotation_font_color="#f5c842",
-                     annotation_font_size=11)
-    ev_fig.add_hline(y=0.05, line_dash="dot", line_color="rgba(0,224,150,0.35)",
-                     annotation_text="Value threshold (EV>0.05)",
-                     annotation_font_color="#00e096", annotation_font_size=11)
-
-    ev_fig.update_layout(
-        paper_bgcolor = "rgba(0,0,0,0)",
-        plot_bgcolor  = "rgba(255,255,255,0.02)",
-        font          = dict(family="Inter, sans-serif", color="#f0f2ff", size=12),
-        height        = 320,
-        margin        = dict(l=10, r=20, t=20, b=40),
-        xaxis         = dict(title="Probability (%)", gridcolor="rgba(255,255,255,0.05)", ticksuffix="%"),
-        yaxis         = dict(title="Expected Value (EV)", gridcolor="rgba(255,255,255,0.05)", tickformat="+.3f"),
-    )
-
-    st.plotly_chart(ev_fig, use_container_width=True)
-
 
 # ─── Feature Debug Expander ───────────────────────────────────────────────────
 
@@ -1630,7 +1615,8 @@ def main():
         st.warning(f"⚠️ No horses found for Race {current_race}. Please use the sidebar to select a race.")
         return
 
-    # ── Race Preview
+    # ── Race Header & Preview
+    render_race_header(current_race)
     render_race_preview(race_horses, extraction)
 
     st.markdown("---")
@@ -1718,31 +1704,8 @@ def main():
         col_main, col_right = st.columns([3, 1])
 
         with col_main:
-            # 1. Condition Meta Chips Bar
-            venue_sel      = st.session_state.get("venue_selector",       "Greyville")
-            surface_sel    = st.session_state.get("surface_selector",     "Polytrack")
-            distance_sel   = int(st.session_state.get("distance_selector", 1200))
-            race_class_sel = st.session_state.get("race_class_selector",  "Stakes")
-            model_mode_sel = st.session_state.get("model_mode_selector",  "Greyville Poly v3.13 ★")
-            race_time_str  = "12:00"
-            if st.session_state.demo_mode:
-                greyville_meta = {
-                    1: {"time": "10:00", "dist": 1200, "type": "Stakes"},
-                    2: {"time": "12:05", "dist": 1200, "type": "MR 80 Handicap"},
-                    3: {"time": "12:40", "dist": 1400, "type": "Listed Stakes"},
-                }
-                race_time_str = greyville_meta.get(current_race, {}).get("time", "12:00")
-
-            st.markdown(f"""
-            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:1rem;">
-              <span class="meta-chip">📍 <strong>{venue_sel}</strong></span>
-              <span class="meta-chip">🛣️ {surface_sel}</span>
-              <span class="meta-chip">📏 {distance_sel}m</span>
-              <span class="meta-chip">🏆 {race_class_sel}</span>
-              <span class="meta-chip">🕒 {race_time_str}</span>
-              <span class="meta-chip" style="border-color:rgba(212,169,42,0.35); color:var(--gold);">🤖 {model_mode_sel}</span>
-            </div>
-            """, unsafe_allow_html=True)
+            # 1. Dynamic Race Header Badges
+            render_race_header(current_race)
 
             # 2. Best Bet & EV Side-by-Side Cards
             top_horse = results[0] if results else None
@@ -1896,14 +1859,21 @@ def main():
 """, unsafe_allow_html=True)
 
             # Monospace string tables for copy/paste
+            races_meta_dict = st.session_state.get("races_meta", {})
+            curr_meta_data  = races_meta_dict.get(current_race, {})
+            curr_race_time  = curr_meta_data.get("race_time", "")
+            raw_dist        = curr_meta_data.get("distance", "")
+            curr_race_dist  = str(raw_dist).replace("m", "").strip() if raw_dist else str(st.session_state.get("distance_selector", 1200))
+            curr_race_class = st.session_state.get("race_class_selector", "Stakes")
+
             with st.expander("📋 Copyable Plain-Text Tables"):
                 table_str = generate_v311_table_string(
                     results=results,
                     race_num=current_race,
-                    race_time=race_time_str,
-                    distance=distance_sel,
+                    race_time=curr_race_time if curr_race_time else "12:00",
+                    distance=curr_race_dist,
                     field_size=st.session_state.get("field_size", len(results)),
-                    race_type=race_class_sel,
+                    race_type=curr_race_class,
                     race_horses=race_horses,
                 )
                 st.code(table_str, language="text")
