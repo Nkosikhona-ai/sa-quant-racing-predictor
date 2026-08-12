@@ -1,0 +1,402 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "created": "2026-08-11",
+    "source": "Phase 2 forensic audit of debug_uploaded.pdf",
+    "note": "REQUIRES_VERIFICATION fields must NOT be used as confirmed meanings"
+  },
+  "abbreviations": [
+    {
+      "code": "MR",
+      "meaning": "Merit Rating",
+      "possible_meaning": "Merit Rating",
+      "confidence": "HIGH",
+      "evidence": "Label appears directly above numeric value in CF Rate section (e.g. MR / 89). Confirmed by context: MR changes between races.",
+      "requires_verification": false
+    },
+    {
+      "code": "AR",
+      "meaning": "Ability Rating",
+      "possible_meaning": "Ability Rating",
+      "confidence": "HIGH",
+      "evidence": "Column header AR in historical performance table, followed by integer rating per race row.",
+      "requires_verification": false
+    },
+    {
+      "code": "SR",
+      "meaning": "Speed Rating",
+      "possible_meaning": "Speed Rating",
+      "confidence": "HIGH",
+      "evidence": "Column header SR appears in historical table row near winning time. Values correlate with race times.",
+      "requires_verification": false
+    },
+    {
+      "code": "RR",
+      "meaning": "Recent Rating",
+      "possible_meaning": "Recent Rating",
+      "confidence": "HIGH",
+      "evidence": "Appears as second value in the Sp Rate / RR block below CF Rate section. Short-term form indicator.",
+      "requires_verification": false
+    },
+    {
+      "code": "CF",
+      "meaning": "ComputaForm Rating",
+      "possible_meaning": "ComputaForm internal rating",
+      "confidence": "HIGH",
+      "evidence": "CF Rate Headgear label. The value before it (e.g. A 46) is the CF grade letter + CF rate number.",
+      "requires_verification": false
+    },
+    {
+      "code": "F/B",
+      "meaning": "Forecast/Board odds (fractional)",
+      "possible_meaning": "Forecast/Board price",
+      "confidence": "HIGH",
+      "evidence": "Column heading F/B on overview pages contains fractional odds matching bookmaker board prices.",
+      "requires_verification": false
+    },
+    {
+      "code": "OB",
+      "meaning": "Opening Board price",
+      "possible_meaning": "Opening Board price",
+      "confidence": "HIGH",
+      "evidence": "Column header OB in historical table, followed by fractional odds string.",
+      "requires_verification": false
+    },
+    {
+      "code": "SP",
+      "meaning": "Starting Price",
+      "possible_meaning": "Starting Price",
+      "confidence": "HIGH",
+      "evidence": "Column header SP in historical table. Official tote/bookmaker starting price.",
+      "requires_verification": false
+    },
+    {
+      "code": "WPR",
+      "meaning": "Weight Performance Rating",
+      "possible_meaning": "Weight Performance Rating or Winning Performance Rating",
+      "confidence": "MEDIUM",
+      "evidence": "Appears as WPR: 16-3200m. Correlated with best distance performance. Exact formula unconfirmed.",
+      "requires_verification": true
+    },
+    {
+      "code": "Dcat",
+      "meaning": "Distance Category",
+      "possible_meaning": "Distance Category",
+      "confidence": "HIGH",
+      "evidence": "Dcat: N-W-S-T-U pattern with career stats. Groups distances: Sprint/Mile/Middle/Stayer.",
+      "requires_verification": false
+    },
+    {
+      "code": "CRSE",
+      "meaning": "Course (this racecourse)",
+      "possible_meaning": "Course stats at this venue",
+      "confidence": "HIGH",
+      "evidence": "CRSE: N-W-S-T-U pattern. Context confirms it is course-specific career record.",
+      "requires_verification": false
+    },
+    {
+      "code": "Dist",
+      "meaning": "Distance (at today race distance)",
+      "possible_meaning": "Distance stats",
+      "confidence": "HIGH",
+      "evidence": "Dist: N-W-S-T-U pattern matching today race distance stats.",
+      "requires_verification": false
+    },
+    {
+      "code": "C&D",
+      "meaning": "Course and Distance",
+      "possible_meaning": "Combined Course + Distance record",
+      "confidence": "HIGH",
+      "evidence": "C&D: N-W-S-T-U pattern. Standard racing abbreviation, confirmed in context.",
+      "requires_verification": false
+    },
+    {
+      "code": "Hdgr",
+      "meaning": "Headgear",
+      "possible_meaning": "Headgear stats (same equipment as today)",
+      "confidence": "HIGH",
+      "evidence": "Hdgr: N-W-S-T-U after headgear code. Stats correlate with headgear changes.",
+      "requires_verification": false
+    },
+    {
+      "code": "J+H",
+      "meaning": "Jockey + Horse combination",
+      "possible_meaning": "This jockey on this horse stats",
+      "confidence": "HIGH",
+      "evidence": "J+H: N-W-S-T-U. Confirmed — matches jockey assigned to horse.",
+      "requires_verification": false
+    },
+    {
+      "code": "J+T",
+      "meaning": "Jockey + Trainer combination",
+      "possible_meaning": "Jockey-trainer partnership stats",
+      "confidence": "HIGH",
+      "evidence": "J+T: N-W-S-T-U. Standard SA racing statistic.",
+      "requires_verification": false
+    },
+    {
+      "code": "W/Time",
+      "meaning": "Winning Time",
+      "possible_meaning": "Winning time of the race",
+      "confidence": "HIGH",
+      "evidence": "Column header W/Time followed by seconds value (e.g. 119.93).",
+      "requires_verification": false
+    },
+    {
+      "code": "400F",
+      "meaning": "Final 400 metres sectional time",
+      "possible_meaning": "400 metre sectional time",
+      "confidence": "HIGH",
+      "evidence": "Column header 400F followed by time in seconds (e.g. 23.5).",
+      "requires_verification": false
+    },
+    {
+      "code": "Adjtpm",
+      "meaning": "Adjusted time per metre",
+      "possible_meaning": "Normalised speed figure per metre",
+      "confidence": "HIGH",
+      "evidence": "Column header Adjtpm. Value format .06160 (seconds/metre). Used to compare across distances.",
+      "requires_verification": false
+    },
+    {
+      "code": "Best vs Ave",
+      "meaning": "Best rating vs Average rating",
+      "possible_meaning": "Delta between peak and mean performance",
+      "confidence": "HIGH",
+      "evidence": "Best vs Ave: +1.90 appears in bio block. Positive means best exceeds average.",
+      "requires_verification": false
+    },
+    {
+      "code": "H/Av",
+      "meaning": "Handicap Average OR Horse Average rating",
+      "possible_meaning": "Unknown — possibly handicap average or horse-level average",
+      "confidence": "LOW",
+      "evidence": "Column H/Av in historical table. Values appear as signed floats (+1.1). Exact formula unknown.",
+      "requires_verification": true
+    },
+    {
+      "code": "SH",
+      "meaning": "UNKNOWN",
+      "possible_meaning": "Possibly Shortened / Shortened handicap or Shoe type",
+      "confidence": "LOW",
+      "evidence": "Appears as column header SH in historical table. Values observed as integers. Meaning unconfirmed.",
+      "requires_verification": true
+    },
+    {
+      "code": "W/R",
+      "meaning": "UNKNOWN",
+      "possible_meaning": "Weight/Rating code or Win/Run ratio",
+      "confidence": "LOW",
+      "evidence": "Appears as W/R column in historical table with values like 1/13. Exact meaning unconfirmed.",
+      "requires_verification": true
+    },
+    {
+      "code": "Rest+14",
+      "meaning": "Rest 14+ days (fresh horse stat)",
+      "possible_meaning": "Stats when horse had 14 or more days off before race",
+      "confidence": "HIGH",
+      "evidence": "Rest+14: N-W-S-T-U pattern. Consistent with SA racing form guide convention.",
+      "requires_verification": false
+    },
+    {
+      "code": "VAC",
+      "meaning": "Vaal course (main)",
+      "possible_meaning": "Vaal Racecourse",
+      "confidence": "HIGH",
+      "evidence": "VAC appears in historical table venue column for Vaal races. Confirmed by context.",
+      "requires_verification": false
+    },
+    {
+      "code": "TUR",
+      "meaning": "Turffontein (main track)",
+      "possible_meaning": "Turffontein Racecourse",
+      "confidence": "HIGH",
+      "evidence": "TUR in venue column for Turffontein races.",
+      "requires_verification": false
+    },
+    {
+      "code": "TFI",
+      "meaning": "Turffontein Inner track",
+      "possible_meaning": "Turffontein Inner",
+      "confidence": "HIGH",
+      "evidence": "TFI distinct from TUR, appears for inner track races at Turffontein.",
+      "requires_verification": false
+    },
+    {
+      "code": "KEN",
+      "meaning": "Kenilworth Racecourse",
+      "possible_meaning": "Kenilworth",
+      "confidence": "HIGH",
+      "evidence": "KEN in venue column for Kenilworth races.",
+      "requires_verification": false
+    },
+    {
+      "code": "SCO",
+      "meaning": "Scottsville Racecourse",
+      "possible_meaning": "Scottsville",
+      "confidence": "HIGH",
+      "evidence": "Standard SA venue code.",
+      "requires_verification": false
+    },
+    {
+      "code": "GRV",
+      "meaning": "Greyville Racecourse",
+      "possible_meaning": "Greyville",
+      "confidence": "HIGH",
+      "evidence": "Standard SA venue code.",
+      "requires_verification": false
+    },
+    {
+      "code": "FAI",
+      "meaning": "Fairview Racecourse",
+      "possible_meaning": "Fairview",
+      "confidence": "HIGH",
+      "evidence": "Standard SA venue code.",
+      "requires_verification": false
+    },
+    {
+      "code": "CMR",
+      "meaning": "UNKNOWN",
+      "possible_meaning": "Possibly Clairwood or Cape Milnerton — defunct track",
+      "confidence": "LOW",
+      "evidence": "Appears in older historical rows. Venue no longer operating. Requires archive verification.",
+      "requires_verification": true
+    },
+    {
+      "code": "HMR",
+      "meaning": "UNKNOWN",
+      "possible_meaning": "Possibly Highveld or Historical Merit Rating",
+      "confidence": "LOW",
+      "evidence": "Seen occasionally in form lines. Context unclear.",
+      "requires_verification": true
+    },
+    {
+      "code": "AcTpm",
+      "meaning": "Actual time per metre",
+      "possible_meaning": "Raw time per metre before adjustment",
+      "confidence": "MEDIUM",
+      "evidence": "Appears near Adjtpm. Likely the unadjusted version of Adjtpm.",
+      "requires_verification": true
+    },
+    {
+      "code": "ClasB",
+      "meaning": "Class B career record",
+      "possible_meaning": "Career stats when running in Class B races",
+      "confidence": "HIGH",
+      "evidence": "ClasB: N-W-S-T-U. Letter suffix matches race class code.",
+      "requires_verification": false
+    },
+    {
+      "code": "LIFE",
+      "meaning": "Lifetime career statistics",
+      "possible_meaning": "All-time career record",
+      "confidence": "HIGH",
+      "evidence": "LIFE: N-W-S-T-U format confirmed across multiple horses.",
+      "requires_verification": false
+    },
+    {
+      "code": "Earn",
+      "meaning": "Career prize money earned",
+      "possible_meaning": "Total earnings in ZAR",
+      "confidence": "HIGH",
+      "evidence": "Earn: R709,712 — confirmed currency and format.",
+      "requires_verification": false
+    },
+    {
+      "code": "B",
+      "meaning": "Bay (coat colour)",
+      "possible_meaning": "Bay colour",
+      "confidence": "HIGH",
+      "evidence": "B appears as colour code in age-colour-sex line (e.g. 7 B g). Consistent with SA racing convention.",
+      "requires_verification": false
+    },
+    {
+      "code": "Ch",
+      "meaning": "Chestnut (coat colour)",
+      "possible_meaning": "Chestnut",
+      "confidence": "HIGH",
+      "evidence": "Standard SA racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "Gr",
+      "meaning": "Grey (coat colour)",
+      "possible_meaning": "Grey",
+      "confidence": "HIGH",
+      "evidence": "Standard SA racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "g",
+      "meaning": "Gelding (sex)",
+      "possible_meaning": "Gelded male horse",
+      "confidence": "HIGH",
+      "evidence": "Consistent with SA and international racing convention.",
+      "requires_verification": false
+    },
+    {
+      "code": "f",
+      "meaning": "Filly (sex — female 4yo or under)",
+      "possible_meaning": "Filly",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "m",
+      "meaning": "Mare (sex — female 5yo+)",
+      "possible_meaning": "Mare",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "c",
+      "meaning": "Colt (sex — male 4yo or under)",
+      "possible_meaning": "Colt",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "h",
+      "meaning": "Horse (sex — entire male 5yo+)",
+      "possible_meaning": "Entire horse",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "G",
+      "meaning": "Good (going)",
+      "possible_meaning": "Good going / track condition",
+      "confidence": "HIGH",
+      "evidence": "G appears in Going column of historical table. Consistent with SA form guides.",
+      "requires_verification": false
+    },
+    {
+      "code": "S",
+      "meaning": "Soft (going)",
+      "possible_meaning": "Soft going",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "H",
+      "meaning": "Heavy (going)",
+      "possible_meaning": "Heavy going",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    },
+    {
+      "code": "F",
+      "meaning": "Firm (going)",
+      "possible_meaning": "Firm going",
+      "confidence": "HIGH",
+      "evidence": "Standard racing abbreviation.",
+      "requires_verification": false
+    }
+  ]
+}

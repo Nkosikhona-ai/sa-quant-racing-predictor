@@ -1,0 +1,1663 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "created": "2026-08-11",
+    "author": "Phase 2 — ComputaForm Data Dictionary Validation & Schema Engineering",
+    "source_pdfs": [
+      "debug_uploaded.pdf"
+    ],
+    "phase": "READ-ONLY AUDIT — DO NOT USE FOR ML TRAINING YET",
+    "note": "All fields preserve raw_value alongside normalized_value. Leakage classifications are conservative by design."
+  },
+  "entities": {
+    "Race": {
+      "description": "Meeting-level and race-level metadata extracted from the ComputaForm overview pages.",
+      "fields": [
+        {
+          "source_label": "RACE N (page header)",
+          "normalized_name": "race_number",
+          "category": "race_identity",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Sequential race number within the meeting. Extracted from the page header line 'RACE N VAAL ...'.",
+          "example": {
+            "raw_value": "RACE 1",
+            "normalized_value": 1
+          },
+          "extraction_pattern": "^RACE\\s+(\\d{1,2})\\s+",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "FIELDS, RATINGS FOR [VENUE]",
+          "normalized_name": "venue",
+          "category": "race_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Name of the racecourse / meeting venue. Extracted from overview page heading.",
+          "example": {
+            "raw_value": "VAAL",
+            "normalized_value": "Vaal"
+          },
+          "extraction_pattern": "FIELDS,?\\s+RATINGS\\s+FOR\\s+([A-Za-z\\s]+)",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "TURF / POLYTRACK / DIRT / SAND (first-page surface marker)",
+          "normalized_name": "surface",
+          "category": "race_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Racing surface type. Appears as first line of a race detail page.",
+          "example": {
+            "raw_value": "TURF",
+            "normalized_value": "Turf"
+          },
+          "extraction_pattern": "\\b(TURF|POLYTRACK|SAND|DIRT)\\b",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "2800M / 1200M (distance in page header or overview)",
+          "normalized_name": "distance_m",
+          "category": "race_context",
+          "data_type": "integer",
+          "unit": "metres",
+          "description": "Race distance in metres. Appears in the race page header line.",
+          "example": {
+            "raw_value": "2800M",
+            "normalized_value": 2800
+          },
+          "extraction_pattern": "\\b(\\d{3,4})\\s*m\\b",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "12:40 (time on overview page)",
+          "normalized_name": "race_time",
+          "category": "race_context",
+          "data_type": "string",
+          "unit": "HH:MM (24h)",
+          "description": "Scheduled start time of the race.",
+          "example": {
+            "raw_value": "12:40",
+            "normalized_value": "12:40"
+          },
+          "extraction_pattern": "\\b(\\d{1,2}:\\d{2})\\b",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "R125,000 (stake on overview page)",
+          "normalized_name": "stake_zar",
+          "category": "race_context",
+          "data_type": "integer",
+          "unit": "ZAR",
+          "description": "Prize money / stake for this race in South African Rand.",
+          "example": {
+            "raw_value": "R125,000",
+            "normalized_value": 125000
+          },
+          "extraction_pattern": "\\b(R[\\d,]+)\\b",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "REF: 9 (race reference code in page header)",
+          "normalized_name": "race_ref",
+          "category": "race_identity",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Internal ComputaForm race reference / class code. Appears in page header as 'REF: N'.",
+          "example": {
+            "raw_value": "REF: 9",
+            "normalized_value": 9
+          },
+          "extraction_pattern": "REF:\\s*(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Bipot Leg N / Jackpot Leg N / Pick 6 Leg N / Place Accumulator Leg N",
+          "normalized_name": "betting_leg",
+          "category": "race_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Exotic betting pool leg designation for this race.",
+          "example": {
+            "raw_value": "Bipot Leg 1",
+            "normalized_value": "Bipot Leg 1"
+          },
+          "extraction_pattern": "\\b(BIPOT|PICK\\s*6|JACKPOT|PLACE\\s*ACCUMULATOR)\\s*(?:LEG)?\\s*(\\d+)\\b",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Race/Clas/St column header (historical table)",
+          "normalized_name": "race_class",
+          "category": "race_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Race class descriptor e.g. 'Mr84C', 'MiddB', 'MdnP'. Per historical table row.",
+          "example": {
+            "raw_value": "Mr84C",
+            "normalized_value": "Mr84C"
+          },
+          "extraction_pattern": "[A-Za-z]{2,5}\\d{0,3}[A-Z]{0,2}",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Date (meeting date in page header)",
+          "normalized_name": "meeting_date",
+          "category": "race_identity",
+          "data_type": "string",
+          "unit": "DD MM YYYY",
+          "description": "Date of the meeting in the page header (e.g. '06 08 2026').",
+          "example": {
+            "raw_value": "06 08 2026",
+            "normalized_value": "2026-08-06"
+          },
+          "extraction_pattern": "\\b(\\d{2}\\s+\\d{2}\\s+\\d{4})\\b",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        }
+      ]
+    },
+    "Horse": {
+      "description": "Per-runner bio card data extracted from the ComputaForm runner block. All values are pre-race.",
+      "fields": [
+        {
+          "source_label": "N HORSENAME (draw + all-caps name line)",
+          "normalized_name": "horse_name",
+          "category": "identity",
+          "data_type": "string",
+          "unit": null,
+          "description": "Horse name as it appears in the ComputaForm PDF (title-cased during normalization).",
+          "example": {
+            "raw_value": "GREEN MACHINE",
+            "normalized_value": "Green Machine"
+          },
+          "extraction_pattern": "^\\s*(\\d{1,2})\\s{1,}([A-Z][A-Z\\s''&\\-.\\(\\)]{2,})\\s*$",
+          "nullable": false,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "N (draw number left of horse name)",
+          "normalized_name": "saddle_number",
+          "category": "identity",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Saddle/cloth number as printed on the ComputaForm.",
+          "example": {
+            "raw_value": "5",
+            "normalized_value": 5
+          },
+          "extraction_pattern": "^\\s*(\\d{1,2})\\s{1,}",
+          "nullable": false,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Draw (label in CF Rate section)",
+          "normalized_name": "draw",
+          "category": "race_entry",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Barrier/starting stall draw position.",
+          "example": {
+            "raw_value": "4",
+            "normalized_value": 4
+          },
+          "extraction_pattern": "Draw label + following integer token",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "7 B g (age sex colour on bio line 2)",
+          "normalized_name": "age",
+          "category": "identity",
+          "data_type": "integer",
+          "unit": "years",
+          "description": "Horse age in years extracted from the second bio line.",
+          "example": {
+            "raw_value": "7",
+            "normalized_value": 7
+          },
+          "extraction_pattern": "^(\\d{1,2})\\s+[A-Z]\\s+[a-z]",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "B (colour code on bio line)",
+          "normalized_name": "colour",
+          "category": "identity",
+          "data_type": "string",
+          "unit": null,
+          "description": "Horse coat colour abbreviation (B=Bay, Ch=Chestnut, Gr=Grey, Ro=Roan, Bl=Black).",
+          "example": {
+            "raw_value": "B",
+            "normalized_value": "Bay"
+          },
+          "extraction_pattern": "^\\d{1,2}\\s+([A-Z][a-z]?)\\s+[a-z]",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "g (sex code on bio line)",
+          "normalized_name": "sex",
+          "category": "identity",
+          "data_type": "string",
+          "unit": null,
+          "description": "Horse sex: g=gelding, f=filly, m=mare, c=colt, h=horse.",
+          "example": {
+            "raw_value": "g",
+            "normalized_value": "gelding"
+          },
+          "extraction_pattern": "^\\d{1,2}\\s+[A-Z]\\s+([a-z])",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Futura - Archerfield (USA) by Arch (USA) (sire/dam pedigree line)",
+          "normalized_name": "sire",
+          "category": "pedigree",
+          "data_type": "string",
+          "unit": null,
+          "description": "Sire name. The first name before ' - ' on the pedigree line.",
+          "example": {
+            "raw_value": "Futura",
+            "normalized_value": "Futura"
+          },
+          "extraction_pattern": "^([A-Za-z][A-Za-z\\s]+)\\s+-\\s+",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Dam name in pedigree line",
+          "normalized_name": "dam",
+          "category": "pedigree",
+          "data_type": "string",
+          "unit": null,
+          "description": "Dam (mother) name. Between ' - ' and ' by ' on the pedigree line.",
+          "example": {
+            "raw_value": "Archerfield (USA)",
+            "normalized_value": "Archerfield"
+          },
+          "extraction_pattern": "\\s+-\\s+(.+?)\\s+by\\s+",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "by Arch (USA) (dam-sire on pedigree line)",
+          "normalized_name": "dam_sire",
+          "category": "pedigree",
+          "data_type": "string",
+          "unit": null,
+          "description": "Broodmare sire. Appears after ' by ' on the pedigree line.",
+          "example": {
+            "raw_value": "Arch (USA)",
+            "normalized_value": "Arch"
+          },
+          "extraction_pattern": "\\bby\\s+(.+?)(?:\\s*$|\\s+\\()",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Foaled: 29 Sep 2019",
+          "normalized_name": "foaled_date",
+          "category": "identity",
+          "data_type": "string",
+          "unit": "DD Mon YYYY",
+          "description": "Horse date of birth.",
+          "example": {
+            "raw_value": "29 Sep 2019",
+            "normalized_value": "2019-09-29"
+          },
+          "extraction_pattern": "Foaled:\\s+(\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4})",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Gelded: 03 Oct 2022",
+          "normalized_name": "gelded_date",
+          "category": "identity",
+          "data_type": "string",
+          "unit": "DD Mon YYYY",
+          "description": "Date the horse was gelded.",
+          "example": {
+            "raw_value": "03 Oct 2022",
+            "normalized_value": "2022-10-03"
+          },
+          "extraction_pattern": "Gelded:\\s+(\\d{1,2}\\s+[A-Za-z]{3}\\s+\\d{4})",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "M N Houdalakis (V) (trainer line before LIFE stats)",
+          "normalized_name": "trainer",
+          "category": "connections",
+          "data_type": "string",
+          "unit": null,
+          "description": "Trainer name. 3rd or 4th line of the bio block, before LIFE stats. NOT YET EXTRACTED.",
+          "example": {
+            "raw_value": "M N Houdalakis (V)",
+            "normalized_value": "M N Houdalakis"
+          },
+          "extraction_pattern": "^([A-Z][A-Za-z\\s\\.]+)\\s*(?:\\([A-Z]+\\))?\\s*$",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION",
+          "note": "Currently returns Unknown. Line position disambiguation needed."
+        },
+        {
+          "source_label": "Jockey (label in CF Rate section)",
+          "normalized_name": "jockey",
+          "category": "connections",
+          "data_type": "string",
+          "unit": null,
+          "description": "Jockey name assigned to ride this horse.",
+          "example": {
+            "raw_value": "C Maujean",
+            "normalized_value": "C Maujean"
+          },
+          "extraction_pattern": "Jockey label + following name token",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "* prefix on jockey name",
+          "normalized_name": "is_apprentice",
+          "category": "connections",
+          "data_type": "boolean",
+          "unit": null,
+          "description": "True if the jockey is an apprentice (name prefixed with '*' in the PDF).",
+          "example": {
+            "raw_value": "*J Smith",
+            "normalized_value": true
+          },
+          "extraction_pattern": "^\\*[A-Za-z]",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "OWNER/S: (info line)",
+          "normalized_name": "owner",
+          "category": "connections",
+          "data_type": "string",
+          "unit": null,
+          "description": "Horse owner(s). Appears after 'OWNER/S:' on the bio info line.",
+          "example": {
+            "raw_value": "Drakenstein Stud (Nom: Mrs G A Rupert)",
+            "normalized_value": "Drakenstein Stud"
+          },
+          "extraction_pattern": "OWNER/S:\\s*(.+?)(?:\\s+-\\s+|$)",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "BRED BY: (info line)",
+          "normalized_name": "breeder",
+          "category": "connections",
+          "data_type": "string",
+          "unit": null,
+          "description": "Horse breeder name. Appears after 'BRED BY:' on the bio info line.",
+          "example": {
+            "raw_value": "Drakenstein Stud",
+            "normalized_value": "Drakenstein Stud"
+          },
+          "extraction_pattern": "BRED\\s+BY:\\s*(.+?)(?:\\s+R\\d|OWNER|$)",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "R140,000 A2YS21 (purchase price in info line)",
+          "normalized_name": "purchase_price_zar",
+          "category": "identity",
+          "data_type": "integer",
+          "unit": "ZAR",
+          "description": "Price paid at auction. Appears with sale catalogue code.",
+          "example": {
+            "raw_value": "R140,000 A2YS21",
+            "normalized_value": 140000
+          },
+          "extraction_pattern": "R([\\d,]+)\\s+[A-Z]\\d[A-Z]{2}\\d{2}",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "KGs (label in CF Rate section)",
+          "normalized_name": "weight_kg",
+          "category": "race_entry",
+          "data_type": "float",
+          "unit": "kg",
+          "description": "Allocated carry weight in kilograms.",
+          "example": {
+            "raw_value": "59.5",
+            "normalized_value": 59.5
+          },
+          "extraction_pattern": "KGs label + following decimal number token",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "A / B / C (headgear code before CF Rate label)",
+          "normalized_name": "headgear_code",
+          "category": "equipment",
+          "data_type": "string",
+          "unit": null,
+          "description": "Headgear code (B=Blinkers, C=Cheekpieces, H=Hood, V=Visor). Exact mapping needs verification.",
+          "example": {
+            "raw_value": "A",
+            "normalized_value": "A"
+          },
+          "extraction_pattern": "Single letter token before CF Rate Headgear label",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Shoes (label line)",
+          "normalized_name": "shoes",
+          "category": "equipment",
+          "data_type": "string",
+          "unit": null,
+          "description": "Shoe type indicator. Full value not yet parsed.",
+          "example": {
+            "raw_value": "Shoes",
+            "normalized_value": null
+          },
+          "extraction_pattern": "^Shoes$",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "PRE_RACE",
+          "confidence": "LOW",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "MR (label in CF Rate section)",
+          "normalized_name": "merit_rating",
+          "category": "ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Current Merit Rating for today's race. Primary handicap input.",
+          "example": {
+            "raw_value": "89",
+            "normalized_value": 89
+          },
+          "extraction_pattern": "MR label + following integer token",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "CF Rate (label / value block)",
+          "normalized_name": "cf_rate",
+          "category": "ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "ComputaForm internal house rating. 'A 46' tokens = grade letter + rate number.",
+          "example": {
+            "raw_value": "46",
+            "normalized_value": 46
+          },
+          "extraction_pattern": "Value token after CF Rate Headgear label",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "F/B odds fractional string",
+          "normalized_name": "forecast_odds_fractional",
+          "category": "market",
+          "data_type": "string",
+          "unit": "fractional",
+          "description": "ComputaForm F/B forecast odds in fractional notation.",
+          "example": {
+            "raw_value": "3/1",
+            "normalized_value": "3/1"
+          },
+          "extraction_pattern": "(?:^|\\s)(\\d{1,4})[/\\-](\\d{1,2})\\s*$",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "MARKET",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "F/B decimal equivalent (computed)",
+          "normalized_name": "forecast_odds_decimal",
+          "category": "market",
+          "data_type": "float",
+          "unit": "decimal",
+          "description": "F/B odds converted to European decimal. Formula: num/den + 1.",
+          "example": {
+            "raw_value": "3/1",
+            "normalized_value": 4.0
+          },
+          "extraction_pattern": "Computed from forecast_odds_fractional",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "MARKET",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "LIFE: 45-5-8-7-6 (runs)",
+          "normalized_name": "career_runs",
+          "category": "career_statistics",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Total career race starts. First number in the LIFE stats tuple.",
+          "example": {
+            "raw_value": "LIFE: 45-5-8-7-6",
+            "normalized_value": 45
+          },
+          "extraction_pattern": "LIFE:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "LIFE: tuple (wins)",
+          "normalized_name": "career_wins",
+          "category": "career_statistics",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Total career wins.",
+          "example": {
+            "raw_value": "LIFE: 45-5-8-7-6",
+            "normalized_value": 5
+          },
+          "extraction_pattern": "LIFE:\\s*\\d+-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "LIFE: tuple (seconds)",
+          "normalized_name": "career_seconds",
+          "category": "career_statistics",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Total career second-place finishes.",
+          "example": {
+            "raw_value": "LIFE: 45-5-8-7-6",
+            "normalized_value": 8
+          },
+          "extraction_pattern": "LIFE:\\s*\\d+-\\d+-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "LIFE: tuple (thirds)",
+          "normalized_name": "career_thirds",
+          "category": "career_statistics",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Total career third-place finishes.",
+          "example": {
+            "raw_value": "LIFE: 45-5-8-7-6",
+            "normalized_value": 7
+          },
+          "extraction_pattern": "LIFE:\\s*\\d+-\\d+-\\d+-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Earn: R709,712",
+          "normalized_name": "career_earnings_zar",
+          "category": "career_statistics",
+          "data_type": "integer",
+          "unit": "ZAR",
+          "description": "Total career prize money earned.",
+          "example": {
+            "raw_value": "Earn: R709,712",
+            "normalized_value": 709712
+          },
+          "extraction_pattern": "Earn:\\s*R([\\d,]+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "2026: 10-0-3-2-1 (season stats)",
+          "normalized_name": "season_stats_current",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Current season runs-wins-seconds-thirds-unplaced.",
+          "example": {
+            "raw_value": "2026: 10-0-3-2-1",
+            "normalized_value": {
+              "year": 2026,
+              "runs": 10,
+              "wins": 0,
+              "seconds": 3,
+              "thirds": 2,
+              "unplaced": 1
+            }
+          },
+          "extraction_pattern": "(\\d{4}):\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "J+H: 3-0-0-1-1",
+          "normalized_name": "jockey_horse_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Runs-wins record of this specific jockey on this specific horse.",
+          "example": {
+            "raw_value": "J+H: 3-0-0-1-1",
+            "normalized_value": {
+              "runs": 3,
+              "wins": 0,
+              "thirds": 1
+            }
+          },
+          "extraction_pattern": "J\\+H:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "J+T: 28-2-2-3-3",
+          "normalized_name": "jockey_trainer_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Runs-wins record of this jockey-trainer partnership.",
+          "example": {
+            "raw_value": "J+T: 28-2-2-3-3",
+            "normalized_value": {
+              "runs": 28,
+              "wins": 2
+            }
+          },
+          "extraction_pattern": "J\\+T:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "TURF: 45-5-8-7-6",
+          "normalized_name": "surface_stats_turf",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record on Turf surface.",
+          "example": {
+            "raw_value": "TURF: 45-5-8-7-6",
+            "normalized_value": {
+              "runs": 45,
+              "wins": 5
+            }
+          },
+          "extraction_pattern": "TURF:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "CRSE: 4-0-2-1-0",
+          "normalized_name": "course_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record at this specific racecourse.",
+          "example": {
+            "raw_value": "CRSE: 4-0-2-1-0",
+            "normalized_value": {
+              "runs": 4,
+              "wins": 0
+            }
+          },
+          "extraction_pattern": "CRSE:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Good: 38-5-6-6-5",
+          "normalized_name": "going_stats_good",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record on Good going.",
+          "example": {
+            "raw_value": "Good: 38-5-6-6-5",
+            "normalized_value": {
+              "runs": 38,
+              "wins": 5
+            }
+          },
+          "extraction_pattern": "Good:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Wet: 7-0-2-1-1",
+          "normalized_name": "going_stats_wet",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record on Wet/Soft/Heavy going.",
+          "example": {
+            "raw_value": "Wet: 7-0-2-1-1",
+            "normalized_value": {
+              "runs": 7,
+              "wins": 0
+            }
+          },
+          "extraction_pattern": "Wet:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Dist: 0-0-0-0-0",
+          "normalized_name": "distance_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record at today's race distance.",
+          "example": {
+            "raw_value": "Dist: 0-0-0-0-0",
+            "normalized_value": {
+              "runs": 0,
+              "wins": 0
+            }
+          },
+          "extraction_pattern": "Dist:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "C&D: 0-0-0-0-0",
+          "normalized_name": "course_distance_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record at this course AND today's distance.",
+          "example": {
+            "raw_value": "C&D: 0-0-0-0-0",
+            "normalized_value": {
+              "runs": 0,
+              "wins": 0
+            }
+          },
+          "extraction_pattern": "C&D:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Hdgr: 41-5-8-7-5",
+          "normalized_name": "headgear_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record when wearing headgear.",
+          "example": {
+            "raw_value": "Hdgr: 41-5-8-7-5",
+            "normalized_value": {
+              "runs": 41,
+              "wins": 5
+            }
+          },
+          "extraction_pattern": "Hdgr:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Dcat: 24-4-5-4-5",
+          "normalized_name": "distance_category_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record for the broad distance category (Sprint/Mile/Middle/Stayer).",
+          "example": {
+            "raw_value": "Dcat: 24-4-5-4-5",
+            "normalized_value": {
+              "runs": 24,
+              "wins": 4
+            }
+          },
+          "extraction_pattern": "Dcat:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Rest+14: 1-1-0-0-0",
+          "normalized_name": "rest_14_plus_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record when the horse had 14+ days rest before a start.",
+          "example": {
+            "raw_value": "Rest+14: 1-1-0-0-0",
+            "normalized_value": {
+              "runs": 1,
+              "wins": 1
+            }
+          },
+          "extraction_pattern": "Rest\\+14:\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "ClasB: 17-1-2-4-0",
+          "normalized_name": "class_stats",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Career record in the same race class.",
+          "example": {
+            "raw_value": "ClasB: 17-1-2-4-0",
+            "normalized_value": {
+              "class": "B",
+              "runs": 17,
+              "wins": 1
+            }
+          },
+          "extraction_pattern": "Clas([A-Z]):\\s*(\\d+)-(\\d+)-(\\d+)-(\\d+)-(\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "WPR: 16-3200m",
+          "normalized_name": "wpr",
+          "category": "career_statistics",
+          "data_type": "object",
+          "unit": null,
+          "description": "Best Weight-Performance Rating and associated distance. Formula unconfirmed.",
+          "example": {
+            "raw_value": "WPR: 16-3200m",
+            "normalized_value": {
+              "wpr_value": 16,
+              "distance_m": 3200
+            }
+          },
+          "extraction_pattern": "WPR:\\s*(\\d+)-(\\d+)m",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Best vs Ave: +1.90",
+          "normalized_name": "best_vs_average",
+          "category": "career_statistics",
+          "data_type": "float",
+          "unit": null,
+          "description": "Difference between horse's best speed rating and its average. Positive = peak exceeds average.",
+          "example": {
+            "raw_value": "+1.90",
+            "normalized_value": 1.9
+          },
+          "extraction_pattern": "Best vs Ave:\\s*([+-]?\\d+\\.\\d+)",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Sp Rate / RR block",
+          "normalized_name": "speed_rating_current",
+          "category": "ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Speed Rating from most recent run.",
+          "example": {
+            "raw_value": "33",
+            "normalized_value": 33
+          },
+          "extraction_pattern": "Sp Rate label + following integer",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "RR (recent rating after Sp Rate)",
+          "normalized_name": "recent_rating",
+          "category": "ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Recent Rating (RR) — short-term form rating.",
+          "example": {
+            "raw_value": "90",
+            "normalized_value": 90
+          },
+          "extraction_pattern": "RR label + following integer",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "N Days Since Last Race (info line)",
+          "normalized_name": "days_since_last_race",
+          "category": "race_entry",
+          "data_type": "integer",
+          "unit": "days",
+          "description": "Days since the horse's previous race start.",
+          "example": {
+            "raw_value": "12 Days Since Last Race",
+            "normalized_value": 12
+          },
+          "extraction_pattern": "(\\d+)\\s+Days?\\s+Since\\s+Last\\s+Race",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "N Days Since Last Win (info line)",
+          "normalized_name": "days_since_last_win",
+          "category": "race_entry",
+          "data_type": "integer",
+          "unit": "days",
+          "description": "Days since the horse's last winning run.",
+          "example": {
+            "raw_value": "656 Days Since Last Win",
+            "normalized_value": 656
+          },
+          "extraction_pattern": "(\\d+)\\s+Days?\\s+Since\\s+Last\\s+Win",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "PRE_RACE",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        }
+      ]
+    },
+    "HistoricalRace": {
+      "description": "Each historical past-performance row for a horse. These describe COMPLETED races — all safe as HISTORICAL features.",
+      "note": "Do NOT confuse with today's race. All fields here are from the horse's past.",
+      "fields": [
+        {
+          "source_label": "15Jan26 (date column)",
+          "normalized_name": "hist_date",
+          "category": "historical_identity",
+          "data_type": "string",
+          "unit": "DDMMMYY",
+          "description": "Date of the historical race.",
+          "example": {
+            "raw_value": "15Jan26",
+            "normalized_value": "2026-01-15"
+          },
+          "extraction_pattern": "(\\d{2}[A-Za-z]{3}\\d{2})",
+          "nullable": false,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "VAC / TUR / TFI / KEN (venue code)",
+          "normalized_name": "hist_venue_code",
+          "category": "historical_identity",
+          "data_type": "string",
+          "unit": null,
+          "description": "3-letter venue code (VAC=Vaal, TUR=Turffontein, TFI=Turffontein Inner, KEN=Kenilworth).",
+          "example": {
+            "raw_value": "VAC",
+            "normalized_value": "VAC"
+          },
+          "extraction_pattern": "([A-Z]{2,3})\\b",
+          "nullable": false,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "G (going column: G=Good S=Soft H=Heavy F=Firm)",
+          "normalized_name": "hist_going",
+          "category": "historical_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Going/track condition for the historical race.",
+          "example": {
+            "raw_value": "G",
+            "normalized_value": "Good"
+          },
+          "extraction_pattern": "Single letter going code column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "448 (race reference in historical table)",
+          "normalized_name": "hist_race_ref",
+          "category": "historical_identity",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Internal ComputaForm race reference number.",
+          "example": {
+            "raw_value": "448",
+            "normalized_value": 448
+          },
+          "extraction_pattern": "\\b(\\d{3,4})\\b",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Mr84C (race class in historical table)",
+          "normalized_name": "hist_race_class",
+          "category": "historical_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Race class code for the historical race.",
+          "example": {
+            "raw_value": "Mr84C",
+            "normalized_value": "Mr84C"
+          },
+          "extraction_pattern": "[A-Za-z]{2,5}\\d{0,3}[A-Z]{0,2}",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "125k (stake in historical table)",
+          "normalized_name": "hist_stake_zar",
+          "category": "historical_context",
+          "data_type": "integer",
+          "unit": "ZAR",
+          "description": "Prize money in thousands ZAR for the historical race.",
+          "example": {
+            "raw_value": "125k",
+            "normalized_value": 125000
+          },
+          "extraction_pattern": "(\\d+)k\\b",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "AR (ability rating column)",
+          "normalized_name": "hist_ability_rating",
+          "category": "historical_ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Ability Rating assigned after the historical race.",
+          "example": {
+            "raw_value": "82",
+            "normalized_value": 82
+          },
+          "extraction_pattern": "AR column value",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "2000R (distance + rail in historical table)",
+          "normalized_name": "hist_distance_m",
+          "category": "historical_context",
+          "data_type": "integer",
+          "unit": "metres",
+          "description": "Race distance for the historical race. R suffix = Rail position indicator.",
+          "example": {
+            "raw_value": "2000R",
+            "normalized_value": 2000
+          },
+          "extraction_pattern": "(\\d{3,4})R?\\b",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "A (field size grade in historical table)",
+          "normalized_name": "hist_field_size_grade",
+          "category": "historical_context",
+          "data_type": "string",
+          "unit": null,
+          "description": "Field size grade letter. Exact mapping requires verification.",
+          "example": {
+            "raw_value": "A",
+            "normalized_value": "A"
+          },
+          "extraction_pattern": "Single letter after distance column",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "LOW",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "MR value in historical table",
+          "normalized_name": "hist_merit_rating",
+          "category": "historical_ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Merit Rating carried by the horse in the historical race.",
+          "example": {
+            "raw_value": "90",
+            "normalized_value": 90
+          },
+          "extraction_pattern": "MR Jockey column integer before jockey name",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Jockey name in historical table",
+          "normalized_name": "hist_jockey",
+          "category": "historical_connections",
+          "data_type": "string",
+          "unit": null,
+          "description": "Jockey who rode the horse in the historical race.",
+          "example": {
+            "raw_value": "M Michel",
+            "normalized_value": "M Michel"
+          },
+          "extraction_pattern": "Name token after MR column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "63-1.5 (weight/adjustment in historical table)",
+          "normalized_name": "hist_weight_kg",
+          "category": "historical_entry",
+          "data_type": "float",
+          "unit": "kg",
+          "description": "Weight carried in the historical race.",
+          "example": {
+            "raw_value": "63",
+            "normalized_value": 63.0
+          },
+          "extraction_pattern": "(\\d+(?:\\.\\d+)?)(?:-[\\d.]+)?",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "12-13 (draw/runners in historical table)",
+          "normalized_name": "hist_draw",
+          "category": "historical_entry",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Barrier draw in the historical race.",
+          "example": {
+            "raw_value": "12-13",
+            "normalized_value": 12
+          },
+          "extraction_pattern": "(\\d+)-(\\d+) first number is draw",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "13 (field size from draw/runners column)",
+          "normalized_name": "hist_field_size",
+          "category": "historical_context",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Number of runners in the historical race.",
+          "example": {
+            "raw_value": "13",
+            "normalized_value": 13
+          },
+          "extraction_pattern": "\\d+-(\\d+) second number",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "OB (opening board odds column)",
+          "normalized_name": "hist_opening_odds",
+          "category": "historical_market",
+          "data_type": "string",
+          "unit": "fractional",
+          "description": "Opening board price for the historical race.",
+          "example": {
+            "raw_value": "16-1",
+            "normalized_value": "16/1"
+          },
+          "extraction_pattern": "(\\d+)[/-](\\d+) in OB column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "SP (starting price column)",
+          "normalized_name": "hist_starting_price",
+          "category": "historical_market",
+          "data_type": "string",
+          "unit": "fractional",
+          "description": "Official Starting Price for the historical race.",
+          "example": {
+            "raw_value": "33-1",
+            "normalized_value": "33/1"
+          },
+          "extraction_pattern": "(\\d+)[/-](\\d+) in SP column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "800 Lth (800m sectional lengths behind)",
+          "normalized_name": "hist_800m_position",
+          "category": "historical_sectionals",
+          "data_type": "float",
+          "unit": "lengths",
+          "description": "Position in lengths behind leader at the 800m point.",
+          "example": {
+            "raw_value": "13",
+            "normalized_value": 13.0
+          },
+          "extraction_pattern": "800 Lth column value",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "400 Lth (400m sectional lengths behind)",
+          "normalized_name": "hist_400m_position",
+          "category": "historical_sectionals",
+          "data_type": "float",
+          "unit": "lengths",
+          "description": "Position in lengths behind leader at the 400m point.",
+          "example": {
+            "raw_value": "14.3",
+            "normalized_value": 14.3
+          },
+          "extraction_pattern": "400 Lth column value",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Fin (finish position column)",
+          "normalized_name": "hist_finish_position",
+          "category": "historical_result",
+          "data_type": "integer",
+          "unit": null,
+          "description": "Finishing position in the historical race.",
+          "example": {
+            "raw_value": "1",
+            "normalized_value": 1
+          },
+          "extraction_pattern": "Fin column integer",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Lth (defeat margin in lengths)",
+          "normalized_name": "hist_defeat_margin_lengths",
+          "category": "historical_result",
+          "data_type": "float",
+          "unit": "lengths",
+          "description": "Margin of defeat in lengths behind winner.",
+          "example": {
+            "raw_value": "14.3",
+            "normalized_value": 14.3
+          },
+          "extraction_pattern": "Lth column decimal",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Win or *2nd (winner name column)",
+          "normalized_name": "hist_winner_name",
+          "category": "historical_result",
+          "data_type": "string",
+          "unit": null,
+          "description": "Name of the winner.",
+          "example": {
+            "raw_value": "Titans Of War",
+            "normalized_value": "Titans Of War"
+          },
+          "extraction_pattern": "Name token in winner column",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "Wgt (winner weight in historical table)",
+          "normalized_name": "hist_winner_weight_kg",
+          "category": "historical_result",
+          "data_type": "integer",
+          "unit": "kg",
+          "description": "Weight carried by the winner in the historical race.",
+          "example": {
+            "raw_value": "56",
+            "normalized_value": 56
+          },
+          "extraction_pattern": "Integer after winner name",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "W/Time (winning time column)",
+          "normalized_name": "hist_winning_time_sec",
+          "category": "historical_result",
+          "data_type": "float",
+          "unit": "seconds",
+          "description": "Winning time of the historical race in seconds.",
+          "example": {
+            "raw_value": "119.93",
+            "normalized_value": 119.93
+          },
+          "extraction_pattern": "(\\d+\\.\\d+) in W/Time column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "400F (400m sectional time)",
+          "normalized_name": "hist_400f_time_sec",
+          "category": "historical_sectionals",
+          "data_type": "float",
+          "unit": "seconds",
+          "description": "Final 400m sectional time for the race.",
+          "example": {
+            "raw_value": "23.5",
+            "normalized_value": 23.5
+          },
+          "extraction_pattern": "(\\d+\\.\\d+) in 400F column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "R (rail position in historical table)",
+          "normalized_name": "hist_rail_position",
+          "category": "historical_context",
+          "data_type": "integer",
+          "unit": "metres",
+          "description": "Rail position in metres on the day of the historical race.",
+          "example": {
+            "raw_value": "4",
+            "normalized_value": 4
+          },
+          "extraction_pattern": "Integer in R column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "MEDIUM",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "H/Av (handicap average column)",
+          "normalized_name": "hist_handicap_average",
+          "category": "historical_ratings",
+          "data_type": "float",
+          "unit": null,
+          "description": "Handicap average value. Exact meaning unconfirmed.",
+          "example": {
+            "raw_value": "+1.1",
+            "normalized_value": 1.1
+          },
+          "extraction_pattern": "([+-]?\\d+\\.\\d+) in H/Av column",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "LOW",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Adjtpm (.06160) adjusted time per metre",
+          "normalized_name": "hist_adjusted_time_per_metre",
+          "category": "historical_ratings",
+          "data_type": "float",
+          "unit": "seconds per metre",
+          "description": "Adjusted time per metre — normalised speed figure for cross-distance comparison.",
+          "example": {
+            "raw_value": ".06160",
+            "normalized_value": 0.0616
+          },
+          "extraction_pattern": "(\\.\\d{5}) in Adjtpm column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "SR (speed rating in historical table)",
+          "normalized_name": "hist_speed_rating",
+          "category": "historical_ratings",
+          "data_type": "integer",
+          "unit": null,
+          "description": "ComputaForm speed rating for the historical race.",
+          "example": {
+            "raw_value": "82",
+            "normalized_value": 82
+          },
+          "extraction_pattern": "Integer in SR column",
+          "nullable": true,
+          "ml_candidate": true,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        },
+        {
+          "source_label": "W/R (weight/rating code in historical table)",
+          "normalized_name": "hist_weight_rating_code",
+          "category": "historical_ratings",
+          "data_type": "string",
+          "unit": null,
+          "description": "Combined weight-rating code. Exact interpretation unconfirmed.",
+          "example": {
+            "raw_value": "1/13",
+            "normalized_value": "1/13"
+          },
+          "extraction_pattern": "(\\d+/\\d+) in W/R column",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "LOW",
+          "verification_status": "REQUIRES_VERIFICATION"
+        },
+        {
+          "source_label": "Comment (running comment in historical row)",
+          "normalized_name": "hist_comment",
+          "category": "historical_result",
+          "data_type": "string",
+          "unit": null,
+          "description": "Free-text running commentary for this historical race.",
+          "example": {
+            "raw_value": "Fatigued",
+            "normalized_value": "Fatigued"
+          },
+          "extraction_pattern": "Text after Comment label",
+          "nullable": true,
+          "ml_candidate": false,
+          "leakage_class": "HISTORICAL",
+          "confidence": "HIGH",
+          "verification_status": "CONFIRMED"
+        }
+      ]
+    }
+  }
+}

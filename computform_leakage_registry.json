@@ -1,0 +1,501 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "created": "2026-08-11",
+    "classification_rules": {
+      "PRE_RACE": "Information available to bettors BEFORE today race starts. SAFE for pre-race prediction.",
+      "HISTORICAL": "Information from COMPLETED past races. SAFE for feature engineering.",
+      "MARKET": "Bookmaker/ComputaForm odds. Use with caution — reflects collective information.",
+      "TARGET": "What we are trying to predict. NEVER use as input feature.",
+      "POST_RACE_LEAKAGE": "Only known AFTER today race completes. MUST NEVER enter pre-race model.",
+      "UNKNOWN": "Classification uncertain. Do not use until resolved."
+    }
+  },
+  "fields": {
+    "race_number": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Known before race day."
+    },
+    "venue": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Published in race programme."
+    },
+    "surface": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Declared before racing begins."
+    },
+    "distance_m": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Declared on race programme."
+    },
+    "race_time": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Scheduled time — not predictive of outcome."
+    },
+    "stake_zar": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Published prize money. Higher stakes attract better horses."
+    },
+    "race_ref": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Class/grading code known pre-race."
+    },
+    "betting_leg": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Pool type not directly predictive."
+    },
+    "race_class": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Race class is pre-declared."
+    },
+    "meeting_date": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Date itself not predictive; extract day-of-week if needed."
+    },
+    "horse_name": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Identifier only — not a feature."
+    },
+    "saddle_number": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Identifier only."
+    },
+    "draw": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Barrier position known before race. Strong predictor at some tracks."
+    },
+    "age": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Horse age known pre-race."
+    },
+    "colour": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Coat colour has no predictive value."
+    },
+    "sex": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Sex is relevant (mares vs geldings vs colts may have different performance profiles)."
+    },
+    "sire": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Sire lineage relevant for distance suitability (encoding required)."
+    },
+    "dam": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Dam name alone not directly predictive without lineage data."
+    },
+    "dam_sire": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Secondary pedigree data. Low direct predictive value."
+    },
+    "foaled_date": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Use age field instead."
+    },
+    "gelded_date": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Gelding improves behaviour — but gelded_date alone lacks predictive value."
+    },
+    "trainer": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Trainer win rate is a significant predictor (encoding required)."
+    },
+    "jockey": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Jockey win rate is a significant predictor (encoding required)."
+    },
+    "is_apprentice": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Apprentice claim affects weight; apprentices have lower overall win rates."
+    },
+    "owner": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Owner name not directly predictive."
+    },
+    "breeder": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Breeder name not directly predictive."
+    },
+    "purchase_price_zar": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Purchase price may reflect quality but has limited direct predictive value at race time."
+    },
+    "weight_kg": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Allocated weight is a primary handicap variable."
+    },
+    "headgear_code": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Headgear changes often signal trainer intent or form issues."
+    },
+    "shoes": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Shoe type not yet reliably parsed. Meaning unconfirmed."
+    },
+    "merit_rating": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Official handicap rating assigned for today. Primary rating feature."
+    },
+    "cf_rate": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "ComputaForm internal rating available pre-race."
+    },
+    "forecast_odds_fractional": {
+      "classification": "MARKET",
+      "allowed_for_training": true,
+      "reason": "Pre-race bookmaker/CF forecast odds. Market signal — use carefully."
+    },
+    "forecast_odds_decimal": {
+      "classification": "MARKET",
+      "allowed_for_training": true,
+      "reason": "Decimal equivalent of F/B odds. Market signal."
+    },
+    "market_odds": {
+      "classification": "MARKET",
+      "allowed_for_training": true,
+      "reason": "Live editable market odds. Reflects bettor/market consensus."
+    },
+    "career_runs": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "All historical — safe feature."
+    },
+    "career_wins": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical win count."
+    },
+    "career_seconds": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical place record."
+    },
+    "career_thirds": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical show record."
+    },
+    "career_earnings_zar": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Career prize money indicates quality class."
+    },
+    "season_stats_current": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Current season stats — historical within this season."
+    },
+    "jockey_horse_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical jockey-horse partnership record."
+    },
+    "jockey_trainer_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical jockey-trainer partnership record."
+    },
+    "surface_stats_turf": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical surface record."
+    },
+    "course_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical course-specific record."
+    },
+    "going_stats_good": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical going record."
+    },
+    "going_stats_wet": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical wet going record."
+    },
+    "distance_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical distance record."
+    },
+    "course_distance_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical C&D record."
+    },
+    "headgear_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical headgear performance."
+    },
+    "distance_category_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical distance category record."
+    },
+    "rest_14_plus_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical performance when fresh."
+    },
+    "class_stats": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical class record."
+    },
+    "wpr": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Peak weight-performance rating — historical."
+    },
+    "best_vs_average": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Peak vs average speed rating delta — historical."
+    },
+    "speed_rating_current": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Most recent speed rating — from a completed race."
+    },
+    "recent_rating": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Short-term form rating based on recent runs."
+    },
+    "days_since_last_race": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Calculated from last run date — available before race."
+    },
+    "days_since_last_win": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": true,
+      "reason": "Days without a win — form indicator available pre-race."
+    },
+    "jockey_colours": {
+      "classification": "PRE_RACE",
+      "allowed_for_training": false,
+      "reason": "Colour description only — not predictive."
+    },
+    "today_finish_position": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "CRITICAL: today finish position is the TARGET or is post-race. MUST NOT enter pre-race features."
+    },
+    "today_starting_price": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "Official SP only known at race start/close. MUST NOT enter pre-race features."
+    },
+    "today_winning_time": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "Winning time only known after the race. MUST NOT enter pre-race features."
+    },
+    "today_defeat_margin": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "Defeat margin only known after the race. MUST NOT enter pre-race features."
+    },
+    "today_speed_rating": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "Speed rating for today is computed post-race. MUST NOT enter pre-race features."
+    },
+    "today_ability_rating": {
+      "classification": "POST_RACE_LEAKAGE",
+      "allowed_for_training": false,
+      "reason": "AR for today is computed post-race. MUST NOT enter pre-race features."
+    },
+    "winner_of_this_race": {
+      "classification": "TARGET",
+      "allowed_for_training": false,
+      "reason": "The prediction target. Output only — never an input feature."
+    },
+    "hist_date": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Identifier for historical row."
+    },
+    "hist_venue_code": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical venue — safe feature."
+    },
+    "hist_going": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical going — safe feature."
+    },
+    "hist_race_ref": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Internal reference only."
+    },
+    "hist_race_class": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical race class — useful for class trajectory."
+    },
+    "hist_stake_zar": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical prize money — class indicator."
+    },
+    "hist_ability_rating": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical AR — safe feature."
+    },
+    "hist_distance_m": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical distance — safe feature."
+    },
+    "hist_field_size_grade": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Grade letter meaning unconfirmed."
+    },
+    "hist_merit_rating": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical MR — class trajectory indicator."
+    },
+    "hist_jockey": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical jockey win rate can be derived."
+    },
+    "hist_weight_kg": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical weight carried — safe feature."
+    },
+    "hist_draw": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical draw — safe feature."
+    },
+    "hist_field_size": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical field size — safe feature."
+    },
+    "hist_opening_odds": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical OB odds — safe feature (past market signal)."
+    },
+    "hist_starting_price": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical SP — safe feature (past market signal)."
+    },
+    "hist_800m_position": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Sectional position — indicates running style."
+    },
+    "hist_400m_position": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Late position — indicates finishing kick."
+    },
+    "hist_finish_position": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Past finish — safe feature (not today result)."
+    },
+    "hist_defeat_margin_lengths": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical margin — safe feature."
+    },
+    "hist_winner_name": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Historical winner name — identifier only."
+    },
+    "hist_winner_weight_kg": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Winner weight — contextual only."
+    },
+    "hist_winning_time_sec": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical winning time — speed index when normalised for distance."
+    },
+    "hist_400f_time_sec": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "400m sectional — pace indicator."
+    },
+    "hist_rail_position": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Rail position affects track bias."
+    },
+    "hist_handicap_average": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Meaning unconfirmed. Do not use until verified."
+    },
+    "hist_adjusted_time_per_metre": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Normalised speed figure — distance-neutral speed comparison."
+    },
+    "hist_speed_rating": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": true,
+      "reason": "Historical speed rating — safe feature."
+    },
+    "hist_weight_rating_code": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Meaning unconfirmed."
+    },
+    "hist_comment": {
+      "classification": "HISTORICAL",
+      "allowed_for_training": false,
+      "reason": "Free text — requires NLP processing."
+    }
+  }
+}
