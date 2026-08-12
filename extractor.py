@@ -128,6 +128,11 @@ class Horse:
     fb_odds_str: str = ""
     market_odds: float = 0.0
 
+    # Phase 3 Forensic Data Expansion & Leakage Firewall Fields
+    normalized_data: Dict[str, Any] = field(default_factory=dict)
+    past_performance: List[Dict[str, Any]] = field(default_factory=list)
+    ml_readiness: Dict[str, str] = field(default_factory=dict)
+
     @property
     def form_figures(self) -> List[int]:
         figures = []
@@ -555,6 +560,369 @@ def try_parse_jockey_and_fields(vals: List[str]) -> Optional[Tuple[str, float, O
     return None
 
 
+# ─── Phase 3 Data Dictionary & Leakage Firewall Helpers ───────────────────────
+
+def build_field_node(
+    source_label: str,
+    raw_value: Any,
+    normalized_value: Any,
+    normalization_status: str = "VERIFIED",
+    ml_candidate: bool = True,
+    leakage_class: str = "PRE_RACE"
+) -> Dict[str, Any]:
+    return {
+        "source_label": source_label,
+        "raw_value": raw_value,
+        "normalized_value": normalized_value,
+        "normalization_status": normalization_status,
+        "ml_candidate": ml_candidate,
+        "leakage_class": leakage_class
+    }
+
+
+def _parse_horse_bio_and_form(block_lines: List[str]) -> Dict[str, Any]:
+    """Parse bio block lines for pedigree, fitness, career tuples, and connection info."""
+    norm: Dict[str, Any] = {}
+
+    colour_map = {"B": "Bay", "Ch": "Chestnut", "Gr": "Grey", "Ro": "Roan", "Bl": "Black"}
+    sex_map = {"g": "gelding", "f": "filly", "m": "mare", "c": "colt", "h": "horse"}
+
+    # 1. Bio & Pedigree line (e.g. "7 B g  Futura - Archerfield (USA) by Arch (USA)")
+    for bl in block_lines:
+        s = bl.strip()
+        m_bio = re.match(r"^(\d{1,2})\s+([A-Za-z]+)\s+([a-z])(?:\s+(.*))?$", s)
+        if m_bio:
+            age_val = int(m_bio.group(1))
+            colour_code = m_bio.group(2)
+            sex_code = m_bio.group(3)
+            ped_text = m_bio.group(4) or ""
+
+            norm["age"] = build_field_node("Bio line", s, age_val, "VERIFIED", True, "PRE_RACE")
+            norm["colour"] = build_field_node("Bio line", colour_code, colour_map.get(colour_code, colour_code), "VERIFIED", False, "PRE_RACE")
+            norm["sex"] = build_field_node("Bio line", sex_code, sex_map.get(sex_code, sex_code), "VERIFIED", True, "PRE_RACE")
+
+            if ped_text:
+                ped_m = re.match(r"^(.+?)\s+-\s+(.+?)(?:\s+by\s+(.+))?$", ped_text)
+                if ped_m:
+                    norm["sire"] = build_field_node("Pedigree line", ped_text, ped_m.group(1).strip(), "VERIFIED", True, "PRE_RACE")
+                    norm["dam"] = build_field_node("Pedigree line", ped_text, ped_m.group(2).strip(), "VERIFIED", False, "PRE_RACE")
+                    if ped_m.group(3):
+                        norm["dam_sire"] = build_field_node("Pedigree line", ped_text, ped_m.group(3).strip(), "VERIFIED", False, "PRE_RACE")
+            break
+
+    # 2. Foaled / Gelded date lines
+    for bl in block_lines:
+        s = bl.strip()
+        m_f = re.search(r"Foaled:\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})", s)
+        if m_f:
+            norm["foaled_date"] = build_field_node("Foaled line", m_f.group(0), m_f.group(1), "VERIFIED", False, "PRE_RACE")
+        m_g = re.search(r"Gelded:\s*(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})", s)
+        if m_g:
+            norm["gelded_date"] = build_field_node("Gelded line", m_g.group(0), m_g.group(1), "VERIFIED", False, "PRE_RACE")
+
+    # 3. Trainer line e.g. "M N Houdalakis (V)"
+    for bl in block_lines:
+        s = bl.strip()
+        m_t = re.match(r"^([A-Z][A-Za-z\s\.\'\-]+?)\s*(?:\([A-Z]+\))?\s*$", s)
+        if m_t:
+            cand = m_t.group(1).strip()
+            if cand.upper() not in _BAD_NAME_TOKENS and len(cand) >= 4 and ' ' in cand:
+                if "trainer" not in norm:
+                    norm["trainer"] = build_field_node("Trainer line", s, cand, "VERIFIED", True, "PRE_RACE")
+
+    # 4. Info line e.g. "12 Days Since Last Race - 656 Days Since Last Win BRED BY: ... R140,000 A2YS21 OWNER/S: ..."
+    for bl in block_lines:
+        s = bl.strip()
+        if "Days Since Last" in s or "OWNER/S:" in s or "BRED BY:" in s:
+            m_dlr = re.search(r"(\d+)\s+Days?\s+Since\s+Last\s+Race", s, re.IGNORECASE)
+            if m_dlr:
+                norm["days_since_last_race"] = build_field_node("Info line", m_dlr.group(0), int(m_dlr.group(1)), "VERIFIED", True, "PRE_RACE")
+            m_dlw = re.search(r"(\d+)\s+Days?\s+Since\s+Last\s+Win", s, re.IGNORECASE)
+            if m_dlw:
+                norm["days_since_last_win"] = build_field_node("Info line", m_dlw.group(0), int(m_dlw.group(1)), "VERIFIED", True, "PRE_RACE")
+
+            m_bred = re.search(r"BRED\s+BY:\s*(.+?)(?=\s+R\d|\s+OWNER|$)", s)
+            if m_bred:
+                norm["breeder"] = build_field_node("Info line", m_bred.group(0), m_bred.group(1).strip(), "VERIFIED", False, "PRE_RACE")
+
+            m_price = re.search(r"(R[\d,]+)\s+([A-Z]\d[A-Z]{2}\d{2})", s)
+            if m_price:
+                raw_p = m_price.group(1).replace("R", "").replace(",", "")
+                p_val = int(raw_p) if raw_p.isdigit() else None
+                norm["purchase_price_zar"] = build_field_node("Info line", m_price.group(0), p_val, "requires_verification", False, "PRE_RACE")
+                norm["auction_code"] = build_field_node("Info line", m_price.group(2), m_price.group(2), "requires_verification", False, "PRE_RACE")
+
+            m_own = re.search(r"OWNER/S:\s*(.+?)$", s)
+            if m_own:
+                norm["owner"] = build_field_node("Info line", m_own.group(0), m_own.group(1).strip(), "VERIFIED", False, "PRE_RACE")
+
+    # 5. Career stats tuples
+    tuple_keys = ["LIFE", "2026", "2025", "J+H", "J+T", "TURF", "POLY", "CRSE", "DIST", "C&D", "Good", "Wet", "Hdgr", "Rest+7", "Rest+14", "Rest+1", "ClasB", "ClasA", "ClasC", "ClasD", "ClasE", "Dcat"]
+    for bl in block_lines:
+        s = bl.strip()
+        for tk in tuple_keys:
+            pat = r"\b" + re.escape(tk) + r":\s*(\d+)-(\d+)-(\d+)-(\d+)-(\d+)"
+            m_tup = re.search(pat, s)
+            if m_tup:
+                raw_str = m_tup.group(0)
+                runs = int(m_tup.group(1))
+                wins = int(m_tup.group(2))
+                seconds = int(m_tup.group(3))
+                thirds = int(m_tup.group(4))
+                unplaced = int(m_tup.group(5))
+                status = "requires_verification" if tk in ("Rest+7", "Rest+14", "Rest+1", "ClasA", "ClasB", "ClasC", "ClasD", "ClasE", "Dcat") else "VERIFIED"
+                norm[tk.lower().replace("+", "_")] = build_field_node(
+                    tk,
+                    raw_str,
+                    {"runs": runs, "wins": wins, "seconds": seconds, "thirds": thirds, "fourths": unplaced},
+                    status,
+                    True,
+                    "HISTORICAL"
+                )
+
+    # 6. WPR & Best vs Ave
+    for bl in block_lines:
+        s = bl.strip()
+        m_wpr = re.search(r"WPR:\s*(\d+)-(\d+)m", s)
+        if m_wpr:
+            norm["wpr"] = build_field_node("WPR", m_wpr.group(0), {"raw_components": [m_wpr.group(1), f"{m_wpr.group(2)}m"]}, "requires_verification", True, "HISTORICAL")
+        m_bva = re.search(r"Best\s+vs\s+Ave:\s*([+-]?\d+\.\d+)", s)
+        if m_bva:
+            norm["best_vs_average"] = build_field_node("Best vs Ave", m_bva.group(0), float(m_bva.group(1)), "VERIFIED", True, "HISTORICAL")
+
+    return norm
+
+
+def _extract_historical_performance(all_page_lines: List[List[str]], valid_horse_names: Optional[set] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """Forensically parse detailed collateral formlines table rows for each horse across all pages."""
+    historical_by_horse: Dict[str, List[Dict[str, Any]]] = {}
+    current_horse = None
+
+    _HEADER_SKIPS = frozenset({'COLLATERAL', 'FORMLINES', 'HORSE', 'DATE', 'CRSE', 'RACE', 'DIST', 'WGT', 'WINNER', 'W/TIME', 'FIN/LTH'})
+
+    for page_lines in all_page_lines:
+        pg_text = "\n".join(page_lines)
+        if "COLLATERAL FORMLINES" not in pg_text and "W/Time 400F" not in pg_text:
+            continue
+
+        i = 0
+        while i < len(page_lines):
+            l = page_lines[i].strip()
+            title_cand = l.title()
+            
+            # Check horse header match
+            if valid_horse_names and title_cand in valid_horse_names:
+                current_horse = title_cand
+                historical_by_horse.setdefault(current_horse, [])
+            elif not valid_horse_names and l.isupper() and len(l) >= 3 and not any(k in l for k in _HEADER_SKIPS):
+                if any(c.isalpha() for c in l):
+                    current_horse = title_cand
+                    historical_by_horse.setdefault(current_horse, [])
+
+            elif current_horse and re.match(r"^\d{1,2}[A-Za-z]{3}\d{2}\s+[A-Z]{2,4}", l):
+                date_venue = l
+                sub_lines = [page_lines[j].strip() for j in range(i + 1, min(len(page_lines), i + 15))]
+
+                going = sub_lines[0] if sub_lines else ""
+                r_class = sub_lines[1] if len(sub_lines) > 1 else ""
+                dist_grade = sub_lines[2] if len(sub_lines) > 2 else ""
+
+                # Token 3 could be MR (if digit e.g. 82, 96) or Jockey name (in Maiden races)
+                cur_idx = 3
+                mr_val = None
+                if cur_idx < len(sub_lines) and sub_lines[cur_idx].isdigit():
+                    mr_val = int(sub_lines[cur_idx])
+                    cur_idx += 1
+
+                jockey_val = sub_lines[cur_idx] if cur_idx < len(sub_lines) else ""
+                cur_idx += 1
+
+                wgt_str = sub_lines[cur_idx] if cur_idx < len(sub_lines) else ""
+                wgt_val = None
+                dr_field_str = ""
+
+                m_w = re.match(r"^(\d+(?:\.\d+)?)$", wgt_str)
+                if m_w:
+                    wgt_val = float(m_w.group(1))
+                    cur_idx += 1
+                    dr_field_str = sub_lines[cur_idx] if cur_idx < len(sub_lines) else ""
+                else:
+                    m_w_dr = re.match(r"^(\d+(?:\.\d+)?)\s+(\d+-\d+)$", wgt_str)
+                    if m_w_dr:
+                        wgt_val = float(m_w_dr.group(1))
+                        dr_field_str = m_w_dr.group(2)
+                        cur_idx += 1
+
+                dr_val = None
+                fn_val = None
+                if "-" in dr_field_str:
+                    parts = dr_field_str.split("-")
+                    if parts[0].isdigit(): dr_val = int(parts[0])
+                    if parts[1].isdigit(): fn_val = int(parts[1])
+
+                ob_str = sub_lines[cur_idx] if cur_idx < len(sub_lines) else ""
+
+                dist_val = None
+                m_dst = re.search(r"(\d+)", dist_grade)
+                if m_dst:
+                    try:
+                        dist_val = int(m_dst.group(1))
+                    except ValueError:
+                        dist_val = None
+
+                row = {
+                    "source_label": "COLLATERAL FORMLINES",
+                    "raw_line": l,
+                    "date_venue_raw": date_venue,
+                    "going_raw": going,
+                    "race_class_raw": r_class,
+                    "distance_grade_raw": dist_grade,
+                    "mr_raw": str(mr_val) if mr_val is not None else "",
+                    "jockey_raw": jockey_val,
+                    "weight_raw": wgt_str,
+                    "draw_field_raw": dr_field_str,
+                    "opening_odds_raw": ob_str,
+                    "normalized": {
+                        "historical_race_date": date_venue.split()[0] if date_venue else None,
+                        "venue_code": date_venue.split()[1] if len(date_venue.split()) > 1 else None,
+                        "going": going,
+                        "race_class": r_class,
+                        "distance_m": dist_val,
+                        "merit_rating": mr_val,
+                        "jockey": jockey_val,
+                        "weight_kg": wgt_val,
+                        "draw": dr_val,
+                        "field_size": fn_val,
+                        "opening_odds": ob_str,
+                    },
+                    "normalization_status": "VERIFIED",
+                    "leakage_class": "HISTORICAL",
+                    "ml_candidate": True
+                }
+                historical_by_horse[current_horse].append(row)
+
+            i += 1
+
+    return historical_by_horse
+
+
+def validate_ml_eligibility(horse: Horse) -> Dict[str, Any]:
+    """
+    Multi-stage Leakage Firewall:
+    Audits all pre-race, historical, and market features on a Horse instance.
+    Explicitly blocks post-race leakage fields (today_finish_position, today_official_sp, etc.).
+    Returns dict containing allowed_features, blocked_features, blocked_reasons, and field_statuses.
+    """
+    allowed_features: List[str] = []
+    blocked_features: List[str] = []
+    blocked_reasons: Dict[str, str] = {}
+    field_statuses: Dict[str, str] = {}
+
+    _BLOCKED_POST_RACE_KEYS = frozenset([
+        "today_finish_position",
+        "today_official_sp",
+        "today_winning_time",
+        "today_defeat_margin",
+        "today_speed_rating",
+        "today_ability_rating",
+        "today_sectional",
+        "winner_of_this_race",
+    ])
+
+    for field_name, node in horse.normalized_data.items():
+        lclass = node.get("leakage_class", "PRE_RACE")
+        status = node.get("normalization_status", "VERIFIED")
+
+        if field_name in _BLOCKED_POST_RACE_KEYS or lclass in ("POST_RACE_LEAKAGE", "TARGET"):
+            blocked_features.append(field_name)
+            blocked_reasons[field_name] = f"Blocked by Leakage Firewall: {lclass}"
+            field_statuses[field_name] = "BLOCKED"
+        elif status == "requires_verification":
+            field_statuses[field_name] = "REQUIRES_VERIFICATION"
+            allowed_features.append(field_name)
+        else:
+            field_statuses[field_name] = "ML_READY"
+            allowed_features.append(field_name)
+
+    base_pre_race = ["draw", "weight", "jockey", "trainer", "merit_rating", "forecast_odds", "market_odds", "is_apprentice"]
+    for bfk in base_pre_race:
+        if bfk not in field_statuses:
+            field_statuses[bfk] = "ML_READY"
+            allowed_features.append(bfk)
+
+    field_statuses["past_performance_rows"] = "ML_READY" if horse.past_performance else "EXTRACTED"
+    allowed_features.append("past_performance_rows")
+
+    return {
+        "horse_name": horse.horse,
+        "race_number": horse.race,
+        "allowed_features_count": len(allowed_features),
+        "allowed_features": sorted(allowed_features),
+        "blocked_features_count": len(blocked_features),
+        "blocked_features": sorted(blocked_features),
+        "blocked_reasons": blocked_reasons,
+        "field_statuses": field_statuses,
+        "leakage_violations_count": len(blocked_features)
+    }
+
+
+def generate_extraction_audit(result: ExtractionResult) -> str:
+    """Generate diagnostic extraction quality and leakage firewall report."""
+    total_races = len(set(h.race for h in result.horses))
+    total_horses = len(result.horses)
+
+    lines = [
+        "=" * 65,
+        "  COMPUTAFORM FORENSIC EXTRACTION & LEAKAGE AUDIT REPORT",
+        "=" * 65,
+        f"  Races detected         : {total_races}",
+        f"  Horses detected        : {total_horses}",
+        f"  Pages read             : {result.pages_read}",
+        f"  Pages skipped          : {result.pages_skipped}",
+        f"  Extraction confidence  : {result.confidence:.0%} ({result.confidence_label})",
+        "-" * 65,
+        "  PRE-RACE FIELD FILL RATES & STATUSES:",
+    ]
+
+    target_fields = [
+        ("draw", "PRE_RACE"),
+        ("weight", "PRE_RACE"),
+        ("jockey", "PRE_RACE"),
+        ("trainer", "PRE_RACE"),
+        ("merit_rating", "PRE_RACE"),
+        ("forecast_odds", "MARKET"),
+        ("fb_odds_str", "MARKET"),
+        ("market_odds", "MARKET"),
+        ("is_apprentice", "PRE_RACE"),
+        ("runs", "HISTORICAL"),
+        ("wins", "HISTORICAL"),
+        ("third_places", "HISTORICAL"),
+    ]
+
+    for fname, lclass in target_fields:
+        vals = [getattr(h, fname, None) for h in result.horses]
+        filled = sum(1 for v in vals if v not in (None, "", 0, 0.0, False, []))
+        pct = int(filled / total_horses * 100) if total_horses else 0
+        lines.append(f"    {fname:<24} [{lclass:<10}] {filled:>3}/{total_horses} ({pct:>3}%)")
+
+    total_leakage_violations = 0
+    for h in result.horses:
+        val_res = validate_ml_eligibility(h)
+        total_leakage_violations += val_res["leakage_violations_count"]
+
+    hist_rows_count = sum(len(h.past_performance) for h in result.horses)
+
+    lines.extend([
+        "-" * 65,
+        f"  Historical rows extracted : {hist_rows_count}",
+        f"  Leakage violations        : {total_leakage_violations} (MUST BE 0)",
+        f"  Parsing warnings          : {len(result.warnings)}",
+        "=" * 65,
+    ])
+
+    return "\n".join(lines)
+
+
 def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None) -> Tuple[Optional[int], List[Horse]]:
     """
     Parse a single Computaform page.
@@ -661,13 +1029,20 @@ def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None)
             f"F/B:{fb_str or 'N/A'} ({dec_odds:.2f})"
         )
 
+        # ── Parse Phase 3 Bio & Form Normalized Data ───────────────────────
+        norm_data = _parse_horse_bio_and_form(block_lines)
+
+        # Extract trainer and sire from normalized_data if available
+        parsed_trainer = norm_data.get("trainer", {}).get("normalized_value") or "Unknown"
+        parsed_sire = norm_data.get("sire", {}).get("normalized_value")
+
         horses.append(Horse(
             horse=name,
             draw=draw_confirmed,
             saddle=draw,  # Original draw from line regex represents saddle number
             weight=weight,
             jockey=jockey,
-            trainer="Unknown",  # trainer not in structured section
+            trainer=parsed_trainer,
             forecast_odds=dec_odds,   # decimal equivalent of ComputaForm F/B
             form_string="",
             runs=life_runs,
@@ -681,9 +1056,11 @@ def _parse_page(page_num: int, lines: List[str], race_num: Optional[int] = None)
             running_comment="",
             comment_history=[],
             race=race_num,
+            sire=parsed_sire,
             is_apprentice=is_apprentice,
             fb_odds_str=fb_str,       # raw string e.g. "15/10"
             market_odds=dec_odds,     # editable copy; UI may update this
+            normalized_data=norm_data,
         ))
 
     logger.info(f"[INFO] Page {page_num}: Runner Count = {len(horses)}")
@@ -1076,6 +1453,17 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
         all_horses: List[Horse] = []
         for rn in sorted(races_dict.keys()):
             all_horses.extend(races_dict[rn])
+
+        # ── Step 6b: Extract Historical Performance Rows & Audit Readiness ──
+        valid_names = set(h.horse.title() for h in all_horses)
+        hist_by_horse = _extract_historical_performance(all_page_lines, valid_horse_names=valid_names)
+        for h in all_horses:
+            key_match = h.horse.title()
+            if key_match in hist_by_horse:
+                h.past_performance = hist_by_horse[key_match]
+            # Run Leakage Firewall audit per horse
+            audit_res = validate_ml_eligibility(h)
+            h.ml_readiness = audit_res["field_statuses"]
 
         logger.info(f"[INFO] Horses Parsed (total): {len(all_horses)}")
 
