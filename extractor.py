@@ -620,15 +620,31 @@ def _parse_horse_bio_and_form(block_lines: List[str]) -> Dict[str, Any]:
         if m_g:
             norm["gelded_date"] = build_field_node("Gelded line", m_g.group(0), m_g.group(1), "VERIFIED", False, "PRE_RACE")
 
-    # 3. Trainer line e.g. "M N Houdalakis (V)"
+    # 3. Trainer line e.g. "M N Houdalakis (V)" or "J S Snaith (PC)"
+    # Pass 3a: Explicit venue code parenthetical e.g. "J S Snaith (PC)"
     for bl in block_lines:
         s = bl.strip()
-        m_t = re.match(r"^([A-Z][A-Za-z\s\.\'\-]+?)\s*(?:\([A-Z]+\))?\s*$", s)
-        if m_t:
-            cand = m_t.group(1).strip()
-            if cand.upper() not in _BAD_NAME_TOKENS and len(cand) >= 4 and ' ' in cand:
-                if "trainer" not in norm:
+        m_t_code = re.match(r"^([A-Z][A-Za-z\s\.\'\-]+?)\s+\(([A-Z]{1,4})\)\s*$", s)
+        if m_t_code:
+            cand = m_t_code.group(1).strip()
+            cand_tokens = set(re.findall(r"[A-Za-z]+", cand.upper()))
+            if not cand_tokens.intersection(_BAD_NAME_TOKENS) and len(cand) >= 4 and ' ' in cand:
+                norm["trainer"] = build_field_node("Trainer line", s, cand, "VERIFIED", True, "PRE_RACE")
+                break
+
+    # Pass 3b: Fallback for lines before LIFE/Shoes/CF Rate
+    if "trainer" not in norm:
+        for bl in block_lines:
+            s = bl.strip()
+            if any(k in s.upper() for k in ["LIFE:", "SHOES", "CF RATE", "SP RATE", "FOALED:", "GELDED:", "BY:"]):
+                break
+            m_t = re.match(r"^([A-Z][A-Za-z\s\.\'\-]+?)\s*$", s)
+            if m_t:
+                cand = m_t.group(1).strip()
+                cand_tokens = set(re.findall(r"[A-Za-z]+", cand.upper()))
+                if not cand_tokens.intersection(_BAD_NAME_TOKENS) and len(cand) >= 4 and ' ' in cand:
                     norm["trainer"] = build_field_node("Trainer line", s, cand, "VERIFIED", True, "PRE_RACE")
+                    break
 
     # 4. Info line e.g. "12 Days Since Last Race - 656 Days Since Last Win BRED BY: ... R140,000 A2YS21 OWNER/S: ..."
     for bl in block_lines:
@@ -1436,7 +1452,15 @@ def extract_from_pdf(file_bytes: bytes) -> ExtractionResult:
                             h.fb_odds_str   = a
                             h.forecast_odds = fractional_to_decimal(a)
                             h.market_odds   = h.forecast_odds
-                            break
+
+                        # Extract trainer if missing or unresolved
+                        if h.trainer in ("Unknown", "Distorted Humor", "William Longsword", "CF Rate Headgear") or not h.trainer:
+                            m_tr = re.match(r"^([A-Z][A-Za-z\s\.\'\-]+?)\s+\d+(?:\.\d+)?%", a)
+                            if m_tr:
+                                cand_tr = m_tr.group(1).strip()
+                                cand_tokens = set(re.findall(r"[A-Za-z]+", cand_tr.upper()))
+                                if not cand_tokens.intersection(_BAD_NAME_TOKENS) and len(cand_tr) >= 3:
+                                    h.trainer = cand_tr
                         # Stop scanning if we hit another horse name line
                         # (all-caps, 2+ words, contains letters, not a form mark)
                         words = a.split()

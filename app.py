@@ -1,22 +1,30 @@
 """
-app.py — SA Horse Racing Predictor
-====================================
-Streamlit single-page app.
+app.py — SA Quant Racing Predictor & Intelligence Terminal
+=============================================================
+A professional quantitative horse racing intelligence platform for
+South African racing — built for serious bettors and quant analysts.
 
-Workflow:
-  1. Upload PhotoForm PDF  (or load demo race)
-  2. Click "Process Race"
-  3. Enter odds (optional)
-  4. View extracted horses, ranked predictions, EV table, bar chart
+Frontend Architecture: Refined Financial/Racing Analytics Terminal
+Approved Palette:
+  - Background: Deep Black (#090B10)
+  - Sidebar: Dark Charcoal (#10121A)
+  - Card Background: Dark Navy (#161A26)
+  - Primary Accent: Champagne / Gold (#E5AD24)
+  - Positive Indicator: Emerald Green (#16C784)
+  - Negative Indicator: Red (#F04452)
+  - Primary Text: Off-White (#F4F5F7)
+  - Secondary Text: Muted Grey (#9299A8)
+  - Border Subtle: Subtle Dark Grey (#292E3B)
 """
 
 import os
 import io
+import json
 import logging
-import streamlit as st
+import dataclasses
 import pandas as pd
 import numpy as np
-
+import streamlit as st
 
 from extractor import extract_from_pdf, get_demo_horses, Horse, ExtractionResult
 from predictor import predict, Prediction, run_race_v311_turffontein, compute_probability_v311_turffontein
@@ -25,224 +33,406 @@ from predictor import predict, Prediction, run_race_v311_turffontein, compute_pr
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ─── Page Config ──────────────────────────────────────────────────────────────
+# ─── Page Configuration ───────────────────────────────────────────────────────
 st.set_page_config(
-    page_title  = "SA Quant Racing Predictor",
-    page_icon   = "🏇",
-    layout      = "wide",
-    initial_sidebar_state = "expanded",
+    page_title="SA Quant Racing | Quantitative Intelligence Terminal",
+    page_icon="🏇",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ─── Custom CSS ───────────────────────────────────────────────────────────────
+# ─── Design System & Custom CSS ───────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ---- fonts & colors ---- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Rajdhani:wght@600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;600;700;900&display=swap');
+/* ─── Typography & Fonts ───────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&family=Rajdhani:wght@600;700&display=swap');
 
 :root {
-    --gold: #d4a92a;
-    --gold-bright: #ffdf7a;
-    --gold-dim: rgba(212,169,42,0.1);
-    --green-win: #22c55e;
-    --red-loss: #ef4444;
-    --amber-warn: #f59e0b;
-    --background: #090b10;
-    --sidebar: #0f1118;
-    --card: #151824;
-    --border: #222636;
-    --muted-foreground: #8892b0;
-    --foreground: #f0f2ff;
+    --bg-primary: #090B10;
+    --bg-sidebar: #10121A;
+    --bg-card: #161A26;
+    --bg-card-subtle: #1C2232;
+    --bg-input: #121520;
+    --accent-gold: #E5AD24;
+    --accent-gold-bright: #FBD364;
+    --accent-gold-dim: rgba(229, 173, 36, 0.12);
+    --indicator-green: #16C784;
+    --indicator-green-dim: rgba(22, 199, 132, 0.12);
+    --indicator-red: #F04452;
+    --indicator-red-dim: rgba(240, 68, 82, 0.12);
+    --accent-blue: #4D88FF;
+    --accent-blue-dim: rgba(77, 136, 255, 0.12);
+    --accent-purple: #A78BFA;
+    --accent-purple-dim: rgba(167, 139, 250, 0.12);
+    --text-primary: #F4F5F7;
+    --text-secondary: #9299A8;
+    --text-muted: #646E82;
+    --border-subtle: #292E3B;
+    --border-hover: #3A4256;
 }
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
+/* ─── Global App Layout ────────────────────────────────────────────── */
+html, body, [class*="css"], .stApp {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
 }
 
-.stApp {
-    background: var(--background);
-    color: var(--foreground);
+#MainMenu, footer, header {
+    visibility: hidden;
 }
 
-/* Hide Streamlit default branding elements */
-#MainMenu, footer {visibility: hidden;}
+.block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 3rem !important;
+    max-width: 1480px !important;
+}
 
-/* Custom Table Styles */
-.data-table-v313 {
+/* ─── Sidebar Styling ──────────────────────────────────────────────── */
+[data-testid="stSidebar"] {
+    background-color: var(--bg-sidebar) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+}
+
+[data-testid="stSidebar"] .block-container {
+    padding: 1.25rem 1rem !important;
+}
+
+/* ─── Tabs Styling ─────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background-color: rgba(16, 18, 26, 0.7);
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 1.25rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 42px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: var(--bg-card) !important;
+    color: var(--accent-gold) !important;
+    border: 1px solid rgba(229, 173, 36, 0.35) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* ─── Standard Terminal Card ───────────────────────────────────────── */
+.terminal-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s ease;
+}
+
+.terminal-card:hover {
+    border-color: var(--border-hover);
+}
+
+/* ─── Featured Top Prediction Card ─────────────────────────────────── */
+.card-featured-top {
+    background: linear-gradient(135deg, rgba(229, 173, 36, 0.12) 0%, rgba(22, 26, 38, 0.98) 100%);
+    border: 1px solid rgba(229, 173, 36, 0.35);
+    border-radius: 14px;
+    padding: 1.5rem 1.75rem;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.card-featured-top::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-gold), var(--accent-gold-bright));
+}
+
+/* ─── Race Overview Bar ────────────────────────────────────────────── */
+.race-overview-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 0.75rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.meta-chip strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.meta-chip-gold {
+    background-color: var(--accent-gold-dim);
+    border-color: rgba(229, 173, 36, 0.3);
+    color: var(--accent-gold);
+}
+
+/* ─── Modern Metric Stat Box ───────────────────────────────────────── */
+.stat-box {
+    background-color: var(--bg-card-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    text-align: center;
+}
+
+.stat-box-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.stat-box-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ─── Responsive Clean Table ───────────────────────────────────────── */
+.table-responsive-container {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    margin-bottom: 1.25rem;
+    background-color: var(--bg-card);
+}
+
+.terminal-data-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.88rem;
-    color: var(--foreground);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-top: 0.5rem;
-}
-.data-table-v313 th {
-    background: var(--sidebar);
-    color: var(--muted-foreground);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    font-weight: 600;
-    padding: 10px 12px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
     text-align: left;
-    border-bottom: 1px solid var(--border);
 }
-.data-table-v313 tr {
-    transition: background 0.15s ease;
+
+.terminal-data-table th {
+    background-color: var(--bg-sidebar);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
 }
-.data-table-v313 tr:hover {
-    background: rgba(255,255,255,0.02);
-}
-.data-table-v313 td {
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--border);
+
+.terminal-data-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-subtle);
     vertical-align: middle;
 }
-.row-rank-1 { background: rgba(212,169,42,0.05); border-left: 3px solid var(--gold); }
-.row-rank-2 { border-left: 3px solid rgba(192,192,192,0.4); }
-.row-rank-3 { border-left: 3px solid rgba(205,127,50,0.4); }
 
-/* Circular Gauge */
-.circular-chart {
-  display: block;
-  margin: 10px auto;
-  max-width: 80px;
-  max-height: 80px;
-}
-.circle-bg {
-  fill: none;
-  stroke: rgba(255,255,255,0.06);
-  stroke-width: 2.8;
-}
-.circle {
-  fill: none;
-  stroke-width: 2.8;
-  stroke-linecap: round;
-  animation: progress 1s ease-out forwards;
-}
-.percentage {
-  fill: #fff;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
-  text-anchor: middle;
-  font-weight: 600;
+.terminal-data-table tr {
+    transition: background-color 0.15s ease;
 }
 
-/* Metric / Stat Pill */
-.meta-chip {
-    padding: 4px 10px;
+.terminal-data-table tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.terminal-data-table tr.top-pick-row {
+    background-color: rgba(229, 173, 36, 0.06);
+    border-left: 3px solid var(--accent-gold);
+}
+
+.terminal-data-table tr.rank-2-row {
+    border-left: 3px solid rgba(192, 192, 192, 0.4);
+}
+
+.terminal-data-table tr.rank-3-row {
+    border-left: 3px solid rgba(205, 127, 50, 0.4);
+}
+
+/* ─── Form Boxes ───────────────────────────────────────────────────── */
+.form-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    font-size: 10.5px;
+    font-weight: 700;
     border-radius: 4px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid var(--border);
-    font-size: 0.78rem;
-    color: var(--muted-foreground);
+    color: #FFFFFF;
+    margin-right: 3px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── Badges & Signal Tags ─────────────────────────────────────────── */
+.signal-tag {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 3px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
     display: inline-block;
 }
 
-/* Premium Layout Cards */
-.card-best-bet {
-    background: linear-gradient(135deg, rgba(212,169,42,0.15), rgba(21,24,36,0.95));
-    border: 1px solid rgba(212,169,42,0.35);
-    border-radius: 12px;
-    padding: 1.5rem;
-    position: relative;
-    overflow: hidden;
-}
-.card-best-bet::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 3px;
-    background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+.signal-value {
+    background-color: var(--indicator-green-dim);
+    color: var(--indicator-green);
+    border: 1px solid rgba(22, 199, 132, 0.35);
 }
 
-.card-ev {
-    background: var(--card);
-    border: 1px solid var(--border);
+.signal-longshot {
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #F59E0B;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+/* ─── Exotics Cards ────────────────────────────────────────────────── */
+.exotics-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
-    padding: 1.5rem;
+    padding: 1.25rem;
+    height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
 }
 
-.form-box {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    font-size: 11px;
-    font-weight: bold;
-    border-radius: 3px;
-    color: #fff;
-    margin-right: 2px;
-    text-shadow: 0 1px 1px rgba(0,0,0,0.5);
-}
-
-.signal-tag {
-    font-size: 9px;
+.exotics-card-header {
+    font-size: 0.75rem;
     font-weight: 800;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 2px 6px;
-    border-radius: 3px;
-    letter-spacing: 0.05em;
-    display: inline-block;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-/* Sidebar overriding */
-[data-testid="stSidebar"] {
-    background: var(--sidebar) !important;
-    border-right: 1px solid var(--border);
+.combo-box {
+    background-color: var(--bg-card-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 0.9rem;
+    margin-bottom: 0.75rem;
 }
 
-/* Streamlit button overriding to look like premium dark sidebar buttons */
+/* ─── Circular Charts ──────────────────────────────────────────────── */
+.circular-chart {
+    display: block;
+    margin: 8px auto;
+    max-width: 76px;
+    max-height: 76px;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.06);
+    stroke-width: 2.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 2.8;
+    stroke-linecap: round;
+}
+
+.percentage {
+    fill: #FFFFFF;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    text-anchor: middle;
+    font-weight: 700;
+}
+
+/* ─── Custom Dark Buttons ──────────────────────────────────────────── */
 .stButton > button {
-    background: transparent !important;
-    color: var(--muted-foreground) !important;
-    font-weight: 500 !important;
-    border-radius: 6px !important;
-    border: 1px solid transparent !important;
-    transition: all 0.2s !important;
-    text-align: left !important;
-    padding: 8px 12px !important;
-    white-space: pre-wrap !important;
-    line-height: 1.3 !important;
+    border-radius: 8px !important;
+    font-size: 0.85rem !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
 }
-.stButton > button:hover {
-    background: rgba(255,255,255,0.03) !important;
-    color: var(--foreground) !important;
-    border-color: var(--border) !important;
+
+/* Primary Button Override */
+button[kind="primary"] {
+    background: linear-gradient(135deg, var(--accent-gold), #c9961d) !important;
+    color: #090B10 !important;
+    border: none !important;
+    font-weight: 700 !important;
 }
-.stButton > button:focus, .stButton > button:active {
-    background: var(--gold-dim) !important;
-    color: var(--gold) !important;
-    border-color: rgba(212,169,42,0.3) !important;
+
+/* Streamlit Expander & Widget Overrides */
+[data-testid="stExpander"] {
+    background-color: var(--bg-card) !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.75rem !important;
+}
+
+/* Responsive Grid Helper */
+@media (max-width: 992px) {
+    .race-overview-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>
-
 """, unsafe_allow_html=True)
 
 
-# ─── Session State Init ───────────────────────────────────────────────────────
+# ─── Session State Initialisation ─────────────────────────────────────────────
 def _init_state():
+    """Initialise default session state variables if not already present."""
     defaults = {
-        "horses":           [],
-        "all_races":        {},   # {race_num: [Horse, ...]}
-        "current_race":     1,
-        "extraction":       None,
-        "predictions":      [],
-        "all_results":      {},
-        "odds_map":         {},
-        "processed":        False,
-        "demo_mode":        False,
-        "race_name":        "Greyville R1 – 1200m (Demo)",
-        "venue_selector":   "Greyville",
-        "surface_selector": "Polytrack",
-        "distance_selector": 1200,
-        "race_class_selector": "Stakes",
-        "model_mode_selector": "Greyville Poly v3.13 ★",
-        "_last_file_id":    None,   # Bug 7: track uploaded file identity
+        "horses":               [],
+        "all_races":            {},   # {race_num: [Horse, ...]}
+        "current_race":         1,
+        "extraction":           None,
+        "predictions":          [],
+        "all_results":          {},   # Authoritative predictions across all races
+        "odds_map":             {},
+        "processed":            False,
+        "demo_mode":            False,
+        "race_name":            "Fairview R1 – 1200m (Demo)",
+        "venue_selector":       "Fairview",
+        "surface_selector":     "Turf",
+        "distance_selector":    1200,
+        "race_class_selector":  "Stakes",
+        "model_mode_selector":  "Greyville Poly v3.13 ★",
+        "_last_file_id":        None,
+        "races_meta":           {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -252,316 +442,37 @@ _init_state()
 
 
 def reset_race_state():
-    """Wipe ALL extracted data, predictions, and status flags.
-
-    This is the ONLY place state should be wiped.  Every key that holds
-    race-specific data must be reset here to prevent stale data leaking
-    across uploads/mode switches.
-    """
+    """Wipe race-specific data to prevent stale leakage across uploads/mode switches."""
     st.session_state.horses = []
     st.session_state.all_races = {}
     st.session_state.current_race = 1
     st.session_state.extraction = None
     st.session_state.predictions = []
-    st.session_state.all_results = {}   # Bug 2: authoritative prediction store
+    st.session_state.all_results = {}
     st.session_state.odds_map = {}
     st.session_state.processed = False
-    st.session_state._last_file_id = None   # Bug 7: clear file identity
+    st.session_state._last_file_id = None
+    st.session_state.races_meta = {}
 
 
-
-
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-
-def _model_mode_html() -> str:
+# ─── Model & Status Helpers ───────────────────────────────────────────────────
+def _model_mode_badge() -> str:
+    """Return styled HTML badge for currently selected model mode."""
     mode = st.session_state.get("model_mode_selector", "Greyville Poly v3.13 ★")
     model_path = os.path.join(os.path.dirname(__file__), "calibration_model_v42.pkl")
+
     if "v3.13" in mode:
-        return '<span class="mode-tag" style="background:rgba(212,169,42,0.15); color:#d4a92a; border:1px solid rgba(212,169,42,0.35); font-weight:700; padding:4px 10px; border-radius:20px;">🏆 Greyville Poly v3.13 Active</span>'
+        return '<span style="background:var(--accent-gold-dim); color:var(--accent-gold); border:1px solid rgba(229,173,36,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">⚡ Greyville Poly v3.13 Active</span>'
     elif "v3.11" in mode:
-        return '<span class="mode-tag mode-ml" style="background:rgba(245,200,66,0.15); color:#f5c842; border:1px solid rgba(245,200,66,0.35); font-weight:700; padding:4px 10px; border-radius:20px;">⚡ Turffontein v3.11 Active</span>'
+        return '<span style="background:rgba(245,200,66,0.15); color:#f5c842; border:1px solid rgba(245,200,66,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">⚡ Turffontein v3.11 Active</span>'
     elif "ML Calibrated" in mode:
         if os.path.exists(model_path):
-            return '<span class="mode-tag mode-ml" style="font-weight:700; padding:4px 10px; border-radius:20px;">🤖 ML Calibrated (v4.2) Active</span>'
-        return '<span class="mode-tag mode-rule" style="background:rgba(255,92,122,0.12); color:#ff5c7a; border:1px solid rgba(255,92,122,0.25); font-weight:700; padding:4px 10px; border-radius:20px;">⚠️ ML Calibrated (v4.2) - PKL Missing!</span>'
+            return '<span style="background:var(--indicator-green-dim); color:var(--indicator-green); border:1px solid rgba(22,199,132,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">🤖 ML Calibrated (v4.2) Active</span>'
+        return '<span style="background:var(--indicator-red-dim); color:var(--indicator-red); border:1px solid rgba(240,68,82,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">⚠️ ML Calibrated (v4.2) - PKL Missing</span>'
     elif "Legacy Rule" in mode:
-        return '<span class="mode-tag mode-rule" style="background:rgba(167,139,250,0.12); color:#a78bfa; border:1px solid rgba(167,139,250,0.25); font-weight:700; padding:4px 10px; border-radius:20px;">📐 Legacy Rule (v3.8) Active</span>'
-    return '<span class="mode-tag mode-ml" style="background:rgba(0,224,150,0.12); color:#00e096; border:1px solid rgba(0,224,150,0.25); font-weight:700; padding:4px 10px; border-radius:20px;">🏇 7-Track Adaptive (v3.9) Active</span>'
+        return '<span style="background:var(--accent-purple-dim); color:var(--accent-purple); border:1px solid rgba(167,139,250,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">📐 Legacy Rule (v3.8) Active</span>'
+    return '<span style="background:var(--indicator-green-dim); color:var(--indicator-green); border:1px solid rgba(22,199,132,0.35); font-weight:700; font-size:11px; padding:4px 10px; border-radius:20px; display:inline-block;">🏇 7-Track Adaptive (v3.9) Active</span>'
 
-
-def _confidence_badge(conf: str) -> str:
-    cls = {"High": "badge-high", "Medium": "badge-medium", "Low": "badge-low"}.get(conf, "badge-low")
-    return f'<span class="badge {cls}">{conf}</span>'
-
-
-def _value_bet_icon(is_value: bool) -> str:
-    return "✅ Value" if is_value else "—"
-
-
-def _rank_str(rank: int) -> str:
-    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-    return f"{medals.get(rank, '')} {rank}"
-
-
-def _ev_color(ev: float) -> str:
-    if ev > 0.10:  return "🟢"
-    if ev > 0.00:  return "🟡"
-    return "🔴"
-
-
-def _show_metric_row(horses, predictions):
-    n_horses = len(horses)
-    n_value  = sum(1 for p in predictions if p.value_bet)
-    top_prob = f"{predictions[0].probability * 100:.1f}%" if predictions else "—"
-    top_ev   = f"{predictions[0].ev:+.3f}" if predictions else "—"
-
-    st.markdown(f"""
-    <div class="metric-row">
-      <div class="metric-card">
-        <div class="metric-val">{n_horses}</div>
-        <div class="metric-label">Runners</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val">{n_value}</div>
-        <div class="metric-label">Value Bets</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val">{top_prob}</div>
-        <div class="metric-label">Top Probability</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-val">{top_ev}</div>
-        <div class="metric-label">Top EV</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-# ─── Sidebar ──────────────────────────────────────────────────────────────────
-
-def render_sidebar():
-    with st.sidebar:
-        # 1. Top Brand Header
-        st.markdown("""
-        <div style="padding: 0.5rem 0; border-bottom: 1px solid var(--border); margin-bottom: 0.75rem;">
-          <div style="font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.2rem; color: var(--gold); letter-spacing: 0.1em; line-height: 1;">
-            SA QUANT RACING
-          </div>
-          <div style="font-size: 0.65rem; color: var(--muted-foreground); letter-spacing: 0.1em; margin-top: 0.15rem; text-transform: uppercase;">
-            BETTING INTELLIGENCE
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # 2. Model Stats Block
-        active_r = st.session_state.get("current_race", 1)
-        st.markdown(f"""
-        <div style="padding: 0.25rem 0.25rem 0.65rem; border-bottom: 1px solid var(--border); margin-bottom: 0.75rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.07em; text-transform: uppercase;">MODEL VERSION</span>
-            <span style="font-size: 11px; color: var(--gold); font-family: 'JetBrains Mono', monospace; font-weight: 600;">v3.13</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.07em; text-transform: uppercase;">TODAY'S TRACK</span>
-            <span style="font-size: 11px; color: var(--foreground); font-weight: 600;">{st.session_state.get("venue_selector", "Greyville")} Poly</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.07em; text-transform: uppercase;">RACE CARD</span>
-            <span style="font-size: 11px; color: var(--foreground); font-family: 'JetBrains Mono', monospace; font-weight: 600;">{active_r} of {len(st.session_state.get("all_races", {}))}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.35rem;">
-            <span style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.07em; text-transform: uppercase;">PREDICTIONS</span>
-            <span style="font-size: 11px; color: var(--foreground); font-weight: 600;">{len(st.session_state.get("all_races", {}))} races</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.07em; text-transform: uppercase;">WIN RATE</span>
-            <span style="font-size: 11px; color: var(--green-win); font-family: 'JetBrains Mono', monospace; font-weight: 600;">25–30%</span>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # 3. Model mode indicator badge
-        st.markdown(_model_mode_html(), unsafe_allow_html=True)
-        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-
-        # 4. File upload & Demo Toggle
-        st.markdown("#### 📄 Upload PhotoForm PDF")
-        uploaded = st.file_uploader(
-            label       = "Drag & drop or browse",
-            type        = ["pdf"],
-            label_visibility = "collapsed",
-            key         = "pdf_upload",
-            on_change   = reset_race_state,  # Wipe old state immediately when a new file is chosen
-        )
-
-        demo_mode = st.checkbox("🎮 Use Demo Race (no PDF needed)", value=st.session_state.demo_mode)
-        if demo_mode != st.session_state.demo_mode:
-            reset_race_state()               # Wipe previous race data first
-            st.session_state.demo_mode = demo_mode
-            if demo_mode:
-                st.session_state.race_name = "Fairview R1 – 1200m (Demo)"
-                st.session_state.venue_selector = "Fairview"
-                st.session_state.distance_selector = 1200
-                st.session_state.race_class_selector = "Stakes"
-                st.session_state.surface_selector = "Turf"
-                st.session_state.races_meta = {
-                    1: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:15", "stake": "R80,000", "race_number": 1, "betting_leg": "Bipot Leg 1"},
-                    2: {"venue": "Fairview", "surface": "Turf", "distance": "1200m", "race_time": "12:50", "stake": "R90,000", "race_number": 2, "betting_leg": "Bipot Leg 2"},
-                    3: {"venue": "Fairview", "surface": "Turf", "distance": "1400m", "race_time": "13:25", "stake": "R100,000", "race_number": 3, "betting_leg": "Place Accumulator Leg 1"},
-                }
-
-        # 5. Prediction Engine Config & Track Parameters (in a clean collapsed expander to save sidebar space)
-        with st.expander("⚙️ Engine & Track Config"):
-            model_mode_options = [
-                "Greyville Poly v3.13 ★",
-                "Turffontein v3.11 ★",
-                "7-Track Adaptive (v3.9)",
-                "ML Calibrated (v4.2)",
-                "Legacy Rule (v3.8)",
-            ]
-            default_index = 0
-            if st.session_state.model_mode_selector in model_mode_options:
-                default_index = model_mode_options.index(st.session_state.model_mode_selector)
-            
-            model_mode = st.selectbox(
-                "Model Mode",
-                options=model_mode_options,
-                index=default_index,
-                key="model_mode_selector"
-            )
-
-            venue_options = ["Turffontein", "Greyville", "Kenilworth", "Durbanville", "Fairview", "Scottsville", "Vaal"]
-            v_idx = 0
-            if st.session_state.venue_selector in venue_options:
-                v_idx = venue_options.index(st.session_state.venue_selector)
-            venue = st.selectbox(
-                "Track / Venue",
-                options=venue_options,
-                index=v_idx,
-                key="venue_selector"
-            )
-
-            if venue == "Greyville":
-                surface_options = ["Polytrack", "Turf"]
-                s_idx = 0
-                if st.session_state.surface_selector in surface_options:
-                    s_idx = surface_options.index(st.session_state.surface_selector)
-                surface = st.selectbox(
-                    "Surface",
-                    options=surface_options,
-                    index=s_idx,
-                    key="surface_selector"
-                )
-            else:
-                st.text_input("Surface", value="Turf", disabled=True, key="surface_disabled")
-                surface = "Turf"
-                st.session_state.surface_selector = "Turf"
-
-            distance = st.number_input(
-                "Distance (m)",
-                min_value=800,
-                max_value=3200,
-                value=int(st.session_state.distance_selector),
-                step=100,
-                key="distance_selector"
-            )
-
-            rc_options = ["Grade 1", "Grade 2", "Grade 3", "Listed", "Merit Rated (MR)", "Maiden Plate", "Pinnacle Stakes", "Other Handicap"]
-            rc_idx = 0
-            if st.session_state.race_class_selector in rc_options:
-                rc_idx = rc_options.index(st.session_state.race_class_selector)
-            race_class = st.selectbox(
-                "Race Class",
-                options=rc_options,
-                index=rc_idx,
-                key="race_class_selector"
-            )
-
-            race_name = st.text_input("Race Name / Description", value=st.session_state.race_name, key="race_name")
-
-        # 6. Race List Selector (Buttons)
-        all_races = st.session_state.get("all_races", {})
-        all_results = st.session_state.get("all_results", {})
-        if all_races:
-            st.markdown('<div style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.08em; margin: 0.75rem 0 0.4rem; text-transform: uppercase;">Races</div>', unsafe_allow_html=True)
-            races_meta = st.session_state.get("races_meta", {})
-            for r in sorted(all_races.keys()):
-                r_horses = all_races[r]
-                r_meta = races_meta.get(r, {})
-                time_str = r_meta.get("race_time", "")
-                dist_val = r_meta.get("distance", "")
-
-                time_part = f"{time_str}" if time_str else ""
-                dist_part = f"({dist_val})" if dist_val else ""
-                header_line = f"R{r}"
-                if time_part or dist_part:
-                    header_line += f" · {time_part} {dist_part}".strip()
-
-                top_pred = all_results.get(r, [None])[0] if all_results else None
-                if top_pred:
-                    prob = int(top_pred.probability * 100)
-                    h_name = top_pred.horse.split(" ")[0]
-                    btn_label = f"{header_line}\n🏆 {h_name} ({prob}%)"
-                else:
-                    btn_label = f"{header_line}\n{len(r_horses)} runners"
-                    
-                isSelected = (r == st.session_state.current_race)
-                label_prefix = "👉 " if isSelected else ""
-                
-                if st.button(f"{label_prefix}{btn_label}", key=f"sidebar_race_btn_{r}", use_container_width=True):
-                    st.session_state.current_race = r
-                    st.session_state.horses       = list(all_races[r])  # Bug 4: copy to break shared reference
-                    # Only mark as processed (and restore predictions) if results exist for this race;
-                    # otherwise reset so the user can generate predictions fresh.
-                    if all_results and r in all_results:
-                        st.session_state.predictions = all_results[r]
-                        st.session_state.processed   = True
-                    else:
-                        st.session_state.predictions = []
-                        st.session_state.processed   = False
-                    st.rerun()
-
-        # 7. Action Buttons
-        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-        process_clicked = st.button("⚡ Process Race", use_container_width=True)
-
-        with st.expander("ℹ️ PDF Extraction Help"):
-            st.markdown("""
-            - Draw / barrier number
-            - Horse name
-            - Jockey & trainer
-            - Form string, runs
-            - Weight carried
-            - Rating / handicap mark
-            """)
-
-        st.markdown("""
-        <div style="font-size: 9px; color: var(--muted-foreground); letter-spacing: 0.08em; margin: 0.75rem 0 0.4rem; text-transform: uppercase;">
-          v3.13 Engine Audit Checklist
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:0.75rem; color:#8892b0;">
-          <div style="display:flex; align-items:center; gap:6px;"><span style="color:#00e096;">✔</span> Longshot Score Boost Disabled</div>
-          <div style="display:flex; align-items:center; gap:6px;"><span style="color:#00e096;">✔</span> Odds-on favorite 35% Floor Active</div>
-          <div style="display:flex; align-items:center; gap:6px;"><span style="color:#00e096;">✔</span> Apprentice Jockey Multiplier Active</div>
-          <div style="display:flex; align-items:center; gap:6px;"><span style="color:#00e096;">✔</span> Greyville Poly Draw Bias Applied</div>
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-
-        with st.expander("📐 EV Formula"):
-            st.latex(r"EV = p \times (odds - 1) - (1 - p)")
-            st.markdown("""
-            - **p** = model probability  
-            - **odds** = decimal odds  
-            - EV > 0 = positive expectation  
-            - EV > 0.05 + Medium+ confidence = **Value Bet ✅**
-            """)
-
-        return uploaded, process_clicked
-
-
-# ─── v3.11 Preprocessing & Output Helpers ────────────────────────────────────
 
 def get_default_mr(race_class: str, runs: int, first_timer: bool) -> int:
     """Return a sensible default Merit Rating when none is available."""
@@ -809,18 +720,10 @@ def generate_perms_block(all_results: dict) -> str:
     return "\n".join(lines)
 
 
-# ─── Race Grouping Helper ───────────────────────────────────────────────────────
-
 def group_horses_by_race(horses: list) -> dict:
-    """
-    Bucket Horse objects by their .race attribute.
-    Returns {race_num: [Horse, ...]} sorted by draw within each race.
-    """
+    """Bucket Horse objects by race number, sorted by draw."""
     all_races: dict = {}
-    
-    # First, try to get race numbers from .race attribute
     for h in horses:
-        # Try multiple attribute names for race number
         rnum = None
         for attr in ['race', 'race_num', 'race_number', 'raceNo']:
             if hasattr(h, attr):
@@ -828,64 +731,96 @@ def group_horses_by_race(horses: list) -> dict:
                 if val is not None:
                     rnum = int(val)
                     break
-        
-        # If no race number found, default to race 1
         if rnum is None:
             rnum = 1
-            
         all_races.setdefault(rnum, []).append(h)
-    
-    # Sort each bucket by draw number
+
     for rnum in all_races:
         all_races[rnum].sort(key=lambda h: getattr(h, 'draw', 0))
-    
     return all_races
 
 
-# ─── Extraction Section ───────────────────────────────────────────────────────
+def _build_demo_meeting() -> list[Horse]:
+    """Generate realistic South African thoroughbred fields across Races 1, 2, and 3."""
+    demo_cards = [
+        # Race 1
+        ("African Gold", 1, 1.90, "1-1-1-2-1", "W. Marwing", "S. Tarry", 105, 1),
+        ("Protea Pride", 2, 2.80, "2-1-3-1", "R. Fourie", "J. Snaith", 98, 1),
+        ("Silver Storm", 3, 4.50, "3-2-2-4", "M. Yeni", "M. de Kock", 92, 1),
+        ("Highveld King", 4, 5.00, "4-1-2-3", "G. Lerena", "C. Dawson", 90, 1),
+        ("Vaal Champion", 5, 6.00, "1-4-5-2", "P. Strydom", "A. Fortune", 88, 1),
+        ("Dragon Heart", 6, 8.50, "5-3-1-6", "K. Matsunyane", "B. Crawford", 85, 1),
+        ("Ubuntu Prince", 7, 7.50, "2-5-4-3", "C. Zackey", "D. Nieuwenhuizen", 84, 1),
+        ("Cape Legend", 8, 14.00, "6-7-8-5", "S. Khumalo", "P. Peter", 80, 1),
+        # Race 2
+        ("Durban Thunder", 1, 2.20, "1-2-1-1", "S. Moodley", "G. van Zyl", 102, 2),
+        ("Coastal Express", 2, 3.50, "2-3-1-2", "A. Mgudlwa", "D. Kannemeyer", 96, 2),
+        ("Table Mountain", 3, 4.20, "1-1-4-3", "R. Fourie", "J. Snaith", 94, 2),
+        ("Karoo Sun", 4, 6.50, "3-4-2-1", "K. de Melo", "M. de Kock", 89, 2),
+        ("Golden Willow", 5, 9.00, "5-2-3-5", "M. Yeni", "D. Bosch", 86, 2),
+        ("Kalahari King", 6, 12.00, "4-5-1-4", "C. Habib", "W. Whitehead", 84, 2),
+        ("Drakensberg", 7, 16.00, "6-6-3-2", "T. Godden", "M. Miller", 81, 2),
+        ("Zulu Dawn", 8, 20.00, "7-8-5-4", "S. Hlengwa", "A. Wright", 78, 2),
+        # Race 3
+        ("Sandton Star", 1, 2.00, "1-1-2-1", "G. Lerena", "J. Janse v Vuuren", 104, 3),
+        ("Highveld Storm", 2, 3.20, "2-1-3-2", "P. Strydom", "S. Tarry", 97, 3),
+        ("Royal Leopard", 3, 5.50, "1-3-4-1", "R. Danielson", "S. Pettigrew", 93, 3),
+        ("Cheetah Strike", 4, 7.00, "4-2-1-3", "M. van Rensburg", "M. Azzie", 89, 3),
+        ("Blue Crane", 5, 8.50, "3-5-2-4", "K. Matsunyane", "B. Webber", 86, 3),
+        ("Pretoria Lass", 6, 11.00, "5-4-3-2", "C. Maujean", "F. Bronkhorst", 83, 3),
+        ("Sun City", 7, 14.00, "6-7-4-5", "J. Penny", "R. Magner", 80, 3),
+        ("Gold Reef", 8, 25.00, "8-8-7-6", "D. Schwarz", "C. Spies", 76, 3),
+    ]
+
+    horses = []
+    for name, dr, odds, form, jock, train, mr, r_num in demo_cards:
+        h = Horse(
+            horse=name,
+            draw=dr,
+            saddle=dr,
+            weight=58.0,
+            jockey=jock,
+            trainer=train,
+            forecast_odds=odds,
+            form_string=form,
+            runs=7,
+            wins=3,
+            third_places=1,
+            f3_pct=57,
+            merit_rating=mr,
+            course_runs=3,
+            horse_gear="",
+            first_timer=False,
+            running_comment="Proven form runner in solid condition.",
+            comment_history=[],
+            race=r_num
+        )
+        horses.append(h)
+    return horses
+
 
 def run_extraction(uploaded_file, demo_mode: bool) -> bool:
-    """Extract horses from PDF or demo data. Returns True on success."""
+    """Extract horses from PDF or load demo meeting data."""
     if demo_mode:
-        horses = get_demo_horses()
-        # Demo: horses are distributed into multiple races (R1, R2, R3)
-        for i, h in enumerate(horses):
-            if i < 8:
-                h.race = 1
-            elif i < 16:
-                h.race = 2
-            else:
-                h.race = 3
-                
+        horses = _build_demo_meeting()
         all_races = group_horses_by_race(horses)
 
         result = ExtractionResult(
-            horses     = horses,
-            confidence = 1.0,
-            warnings   = [],
-            raw_text   = "Demo mode — synthetic data",
-            pages_read = 0,
+            horses=horses,
+            confidence=1.0,
+            warnings=[],
+            raw_text="Demo mode — synthetic South African thoroughbred race meeting data",
+            pages_read=3,
         )
-        demo_odds = {
-            "African Gold":  1.90, "Protea Pride": 2.80, "Silver Storm": 4.50,
-            "Highveld King": 5.00, "Vaal Champion": 6.00, "Dragon Heart": 8.50,
-            "Cape Legend":  14.00, "Ubuntu Prince": 7.50,
-        }
-        for h in horses:
-            name_key = getattr(h, "horse", "Unknown")
-            try:
-                h.forecast_odds = demo_odds.get(name_key, 0.0)
-            except AttributeError:
-                pass
 
-        st.session_state.all_races    = all_races
+        st.session_state.all_races = all_races
         st.session_state.current_race = min(all_races.keys())
-        st.session_state.horses       = list(all_races[st.session_state.current_race])  # Bug 4: copy
-        st.session_state.extraction   = result
-        st.session_state.processed    = False
-        st.session_state.predictions  = []   # Clear stale predictions from previous runs
-        st.session_state.all_results  = {}
-        st.session_state.odds_map     = {
+        st.session_state.horses = list(all_races[st.session_state.current_race])
+        st.session_state.extraction = result
+        st.session_state.processed = False
+        st.session_state.predictions = []
+        st.session_state.all_results = {}
+        st.session_state.odds_map = {
             getattr(h, "horse", "Unknown"): getattr(h, "market_odds", getattr(h, "forecast_odds", 0.0))
             for h in horses
         }
@@ -897,40 +832,17 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
         return True
 
     if uploaded_file is None:
-        st.warning("⚠️ Please upload a PDF or enable Demo Mode.")
+        st.warning("⚠️ Please select a Computaform PDF or enable Demo Mode in the sidebar.")
         return False
 
-    # Validate file size (< 20 MB)
     file_bytes = uploaded_file.read()
     if len(file_bytes) > 20 * 1024 * 1024:
-        st.error("❌ File too large (> 20 MB). Please upload a smaller PDF.")
+        st.error("❌ File exceeds maximum permitted size (20 MB).")
         return False
 
-    st.info("⏳ Processing PDF... this usually takes 2–5 seconds.")
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    status_text.text("📄 Starting extraction...")
-    
-    with st.spinner("📄 Extracting race data from PDF..."):
+    with st.spinner("📄 Extracting Computaform race data..."):
         try:
-            progress_bar.progress(25)
-            status_text.text("📄 Parsing PDF structure...")
-            # Save PDF to disk so the diagnostic script can inspect it
-            _debug_pdf_path = "debug_uploaded.pdf"
-            try:
-                with open(_debug_pdf_path, "wb") as _f:
-                    _f.write(file_bytes)
-                logger.info("Saved uploaded PDF to %s for diagnostic", _debug_pdf_path)
-            except Exception as _e:
-                logger.warning("Could not save debug PDF: %s", _e)
-
             result = extract_from_pdf(file_bytes)
-            progress_bar.progress(100)
-            status_text.text("✅ Extraction complete!")
-
-            # ─── App-side safety net ────────────────────────────────────────
-            # Runs even if the extractor's own post-processing was skipped due
-            # to a cached .pyc or any other reason.
             if result and result.horses:
                 def _is_bad_horse(h) -> bool:
                     n = getattr(h, "horse", "").strip()
@@ -938,9 +850,6 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
 
                 result.horses = [h for h in result.horses if not _is_bad_horse(h)]
 
-                # Bug 1: Bump race 0 → 1 (ONLY for horses actually in race 0)
-                # Previously this incremented ALL horses, shifting races 0-7 to 1-8
-                # but also shifting races that were already correct, creating phantoms.
                 has_race_0 = any(h.race == 0 for h in result.horses)
                 if has_race_0:
                     for h in result.horses:
@@ -948,704 +857,938 @@ def run_extraction(uploaded_file, demo_mode: bool) -> bool:
                             h.race = 1
 
                 result.horses.sort(key=lambda h: (h.race, h.draw))
-                logger.info(
-                    "App-side fix applied: %d horses across races %s",
-                    len(result.horses),
-                    sorted({h.race for h in result.horses}),
-                )
-            # ────────────────────────────────────────────────────────────────
         except Exception as e:
-            progress_bar.empty()
-            status_text.empty()
-            st.error(f"❌ Extraction failed: {e}")
-            logger.exception("PDF extraction error")
+            st.error(f"❌ Extraction error: {e}")
+            logger.exception("PDF extraction failed")
             return False
 
-    # Validate
     if not result.is_valid:
-        st.markdown(f"""
-        <div class="warn-banner">
-          ❌ <strong>Extraction failed</strong> — could not find at least 2 valid horses in the PDF.<br>
-          Check that this is a standard SA PhotoForm/Computaform race card PDF.
-        </div>
-        """, unsafe_allow_html=True)
-        if result.warnings:
-            with st.expander("🔍 Extraction warnings"):
-                for w in result.warnings:
-                    st.write(f"• {w}")
+        st.error("❌ Extraction incomplete — unable to identify at least 2 valid runners in the uploaded file.")
         return False
 
-    # Filter malformed objects
     valid_horses = [h for h in result.horses if hasattr(h, "horse")]
-
-    # Ensure each horse has a race number assigned (fallback if extractor missed it)
     for h in valid_horses:
         if not hasattr(h, 'race') or getattr(h, 'race', None) is None:
             h.race = 1
 
-    # Preprocess: assign default MRs and initialise list fields
     race_class = st.session_state.get("race_class_selector", "Grade 1")
     preprocess_horse_data(valid_horses, race_class)
-
-    # Group by race number (populated by extractor boundary detection)
     all_races = group_horses_by_race(valid_horses)
 
-    # If ALL horses ended up in race 1 and the field is suspiciously large,
-    # try the saddle-reset heuristic from extractor before giving up.
     if len(all_races) == 1 and len(valid_horses) > 12:
-        st.warning(
-            f"⚠️ All {len(valid_horses)} horses were assigned to Race 1. "
-            "Attempting saddle-reset redistribution…"
-        )
         from extractor import _assign_by_saddle_reset
         valid_horses_sorted = sorted(valid_horses, key=lambda h: (getattr(h, 'saddle', 0), getattr(h, 'draw', 0)))
         valid_horses_sorted = _assign_by_saddle_reset(valid_horses_sorted, n_races=len(valid_horses) // 8)
         all_races = group_horses_by_race(valid_horses_sorted)
-        logger.info(f"Saddle-reset heuristic reassigned horses to races: {sorted(all_races.keys())}")
-
-    # Only split into fixed groups of 8 as a last resort (warn user)
-    if len(all_races) == 1 and len(valid_horses) > 8:
-        st.warning(
-            "⚠️ Could not detect race boundaries automatically. "
-            "Horses are being split into groups of up to 8. "
-            "Please verify the race assignments below."
-        )
-        all_races = {}
-        for i in range(0, len(valid_horses), 8):
-            race_num = (i // 8) + 1
-            group = valid_horses[i:i+8]
-            for h in group:
-                h.race = race_num
-            all_races[race_num] = group
-        logger.info(f"Last-resort split: {len(valid_horses)} horses into {len(all_races)} groups of ~8")
 
     if not all_races:
-        st.error("❌ No races detected in the extracted data.")
+        st.error("❌ No races could be segmented from the extracted data.")
         return False
 
     first_race = min(all_races.keys())
-    n_races    = len(all_races)
-    total_h    = len(valid_horses)
-
     st.session_state.races_meta = getattr(result, "races_meta", {})
-
-    st.session_state.all_races    = all_races
+    st.session_state.all_races = all_races
     st.session_state.current_race = first_race
-    st.session_state.horses       = list(all_races[first_race])  # Bug 4: copy
-    st.session_state.extraction   = result
-    st.session_state.processed    = False
-    st.session_state.predictions  = []   # Clear stale predictions from previous runs
-    st.session_state.all_results  = {}
-    st.session_state.odds_map     = {
+    st.session_state.horses = list(all_races[first_race])
+    st.session_state.extraction = result
+    st.session_state.processed = False
+    st.session_state.predictions = []
+    st.session_state.all_results = {}
+    st.session_state.odds_map = {
         getattr(h, "horse", "Unknown"): getattr(h, "market_odds", getattr(h, "forecast_odds", 0.0))
         for h in valid_horses
     }
-    st.success(
-        f"✅ {total_h} horse{'s' if total_h != 1 else ''} loaded across "
-        f"{n_races} race{'s' if n_races != 1 else ''} — showing Race {first_race}."
-    )
+    st.success(f"✅ Loaded {len(valid_horses)} runners across {len(all_races)} races. Currently displaying Race {first_race}.")
     return True
 
 
-# ─── Dynamic Race Header Component ────────────────────────────────────────────
+# ─── Sidebar Component ────────────────────────────────────────────────────────
+def render_sidebar():
+    """Renders the fixed left sidebar with branding, engine info, uploads, and navigation."""
+    with st.sidebar:
+        # 1. Branding Header
+        st.markdown("""
+        <div style="padding: 0.25rem 0 0.85rem; border-bottom: 1px solid var(--border-subtle); margin-bottom: 1rem;">
+          <div style="font-family: 'Rajdhani', sans-serif; font-weight: 700; font-size: 1.35rem; color: var(--accent-gold); letter-spacing: 0.08em; line-height: 1;">
+            SA QUANT RACING
+          </div>
+          <div style="font-size: 0.68rem; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.12em; margin-top: 0.35rem; text-transform: uppercase;">
+            BETTING INTELLIGENCE TERMINAL
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-def render_race_header(current_race: int):
-    """Render dynamic ComputaForm race header badges strictly tied to current_race."""
+        # 2. System Status & Model Card
+        active_r = st.session_state.get("current_race", 1)
+        total_races = len(st.session_state.get("all_races", {}))
+        card_str = f"{active_r} of {total_races}" if total_races > 0 else "None loaded"
+        track_display = f"{st.session_state.get('venue_selector', 'Fairview')} ({st.session_state.get('surface_selector', 'Turf')})"
+
+        st.markdown(f"""
+        <div style="background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">ENGINE</span>
+            <span style="font-size:0.8rem; font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--accent-gold);">v3.13 QUANT</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">VENUE</span>
+            <span style="font-size:0.8rem; font-weight:600; color:var(--text-primary);">{track_display}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">MEETING</span>
+            <span style="font-size:0.8rem; font-family:'JetBrains Mono', monospace; font-weight:600; color:var(--text-primary);">{card_str}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;" title="Historical research backtest benchmark (Phases 1–3); not a guarantee of forward live returns.">
+            <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.06em;">HISTORICAL BENCHMARK</span>
+            <span style="font-size:0.8rem; font-family:'JetBrains Mono', monospace; font-weight:700; color:var(--indicator-green);">25–30%</span>
+          </div>
+          <div style="font-size:0.65rem; color:var(--text-muted); margin-top:2px; font-style:italic; line-height:1.2;">
+            *Research baseline (not live returns)
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown(_model_mode_badge(), unsafe_allow_html=True)
+        st.markdown("<div style='height: 0.75rem;'></div>", unsafe_allow_html=True)
+
+        # 3. Race Card Upload & File Status
+        st.markdown("<div style='font-size:0.75rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.4rem;'>📄 Race Card Document</div>", unsafe_allow_html=True)
+        uploaded = st.file_uploader(
+            label="Upload Computaform PDF",
+            type=["pdf"],
+            label_visibility="collapsed",
+            key="pdf_upload",
+            on_change=reset_race_state,
+        )
+
+        if uploaded is not None:
+            file_mb = len(uploaded.getvalue()) / (1024 * 1024)
+            st.markdown(f"""
+            <div style="background:rgba(22,199,132,0.06); border:1px solid rgba(22,199,132,0.25); border-radius:6px; padding:6px 10px; font-size:0.75rem; color:var(--indicator-green); margin-bottom:0.5rem; display:flex; justify-content:space-between;">
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;">📎 {uploaded.name}</span>
+              <span>{file_mb:.1f} MB</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+        demo_mode = st.checkbox("🎮 Use Demo Race Card", value=st.session_state.demo_mode)
+        if demo_mode != st.session_state.demo_mode:
+            reset_race_state()
+            st.session_state.demo_mode = demo_mode
+            if demo_mode:
+                st.session_state.race_name = "Fairview R1 – 1200m (Demo)"
+                st.session_state.venue_selector = "Fairview"
+                st.session_state.distance_selector = 1200
+                st.session_state.race_class_selector = "Stakes"
+                st.session_state.surface_selector = "Turf"
+                run_extraction(None, demo_mode=True)
+                st.rerun()
+
+        # 4. Action Button: Process Race
+        st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+        process_clicked = st.button("⚡ Process Race Card", type="primary", use_container_width=True)
+
+        # 5. Expandable Configuration Groups
+        with st.expander("⚙️ Engine & Model Configuration"):
+            model_mode_options = [
+                "Greyville Poly v3.13 ★",
+                "Turffontein v3.11 ★",
+                "7-Track Adaptive (v3.9)",
+                "ML Calibrated (v4.2)",
+                "Legacy Rule (v3.8)",
+            ]
+            default_index = 0
+            if st.session_state.model_mode_selector in model_mode_options:
+                default_index = model_mode_options.index(st.session_state.model_mode_selector)
+
+            model_mode = st.selectbox(
+                "Prediction Engine",
+                options=model_mode_options,
+                index=default_index,
+                key="model_mode_selector"
+            )
+
+        with st.expander("📍 Track & Meeting Parameters"):
+            venue_options = ["Turffontein", "Greyville", "Kenilworth", "Durbanville", "Fairview", "Scottsville", "Vaal"]
+            v_idx = 0
+            if st.session_state.venue_selector in venue_options:
+                v_idx = venue_options.index(st.session_state.venue_selector)
+            venue = st.selectbox("Track / Venue", options=venue_options, index=v_idx, key="venue_selector")
+
+            if venue == "Greyville":
+                surface_options = ["Polytrack", "Turf"]
+                s_idx = 0
+                if st.session_state.surface_selector in surface_options:
+                    s_idx = surface_options.index(st.session_state.surface_selector)
+                st.selectbox("Surface", options=surface_options, index=s_idx, key="surface_selector")
+            else:
+                st.selectbox("Surface", options=["Turf"], index=0, key="surface_selector", disabled=True)
+
+            st.number_input(
+                "Distance (m)",
+                min_value=800,
+                max_value=3200,
+                value=int(st.session_state.distance_selector),
+                step=100,
+                key="distance_selector"
+            )
+
+            rc_options = ["Grade 1", "Grade 2", "Grade 3", "Listed", "Merit Rated (MR)", "Maiden Plate", "Pinnacle Stakes", "Other Handicap"]
+            rc_idx = 0
+            if st.session_state.race_class_selector in rc_options:
+                rc_idx = rc_options.index(st.session_state.race_class_selector)
+            st.selectbox("Race Class", options=rc_options, index=rc_idx, key="race_class_selector")
+            st.text_input("Race Title", value=st.session_state.race_name, key="race_name")
+
+        # 6. Race Navigation
+        all_races = st.session_state.get("all_races", {})
+        all_results = st.session_state.get("all_results", {})
+        races_meta = st.session_state.get("races_meta", {})
+
+        if all_races:
+            st.markdown("""
+            <div style="font-size:0.75rem; font-weight:700; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.08em; margin: 1rem 0 0.5rem;">
+              🏁 Race Navigation
+            </div>
+            """, unsafe_allow_html=True)
+
+            for r in sorted(all_races.keys()):
+                r_horses = all_races[r]
+                r_meta = races_meta.get(r, {})
+                time_str = r_meta.get("race_time", "")
+                dist_val = r_meta.get("distance", "")
+
+                time_dist_label = f"{time_str} · {dist_val}" if (time_str and dist_val) else (time_str or dist_val or f"{len(r_horses)} runners")
+                is_selected = (r == st.session_state.current_race)
+
+                top_pred = all_results.get(r, [None])[0] if all_results else None
+                top_str = ""
+                if top_pred:
+                    prob_pct = int(top_pred.probability * 100)
+                    h_short = top_pred.horse.split()[0]
+                    top_str = f" · 🏆 {h_short} ({prob_pct}%)"
+
+                btn_label = f"Race {r} [{time_dist_label}]{top_str}"
+                if is_selected:
+                    btn_label = f"👉 {btn_label}"
+
+                if st.button(btn_label, key=f"nav_race_{r}", use_container_width=True):
+                    st.session_state.current_race = r
+                    st.session_state.horses = list(all_races[r])
+                    if all_results and r in all_results:
+                        st.session_state.predictions = all_results[r]
+                        st.session_state.processed = True
+                    else:
+                        st.session_state.predictions = []
+                        st.session_state.processed = False
+                    st.rerun()
+
+        # 7. Audit & Formula Reference
+        with st.expander("ℹ️ Quant Audit & EV Reference"):
+            st.latex(r"EV = p \times (odds - 1) - (1 - p)")
+            st.markdown("""
+            - **EV > 0.05 + Medium/High Confidence** = Value Overlay ✅
+            - **Odds >= 10.0 + Positive EV** = Longshot Alert 🔥
+            - Models calibrated via Harville sequential probabilities.
+            """)
+
+        return uploaded, process_clicked
+
+
+# ─── Dashboard Components ─────────────────────────────────────────────────────
+
+def render_race_overview_bar(current_race: int):
+    """Render a compact horizontal information bar with key race conditions."""
     races_meta = st.session_state.get("races_meta", {})
     meta = races_meta.get(current_race, {})
 
-    venue       = meta.get("venue")
-    surface     = meta.get("surface")
-    distance    = meta.get("distance")
-    race_time   = meta.get("race_time")
-    stake       = meta.get("stake")
-    betting_leg = meta.get("betting_leg")
+    venue = meta.get("venue") or st.session_state.get("venue_selector", "Fairview")
+    surface = meta.get("surface") or st.session_state.get("surface_selector", "Turf")
+    distance = meta.get("distance") or f"{st.session_state.get('distance_selector', 1200)}m"
+    race_time = meta.get("race_time") or "12:15"
+    stake = meta.get("stake") or "R80,000"
+    betting_leg = meta.get("betting_leg") or "Exotics Available"
 
-    badges = []
-    if venue:
-        badges.append(f'<span class="meta-chip">📍 <strong>{venue}</strong></span>')
-    if surface:
-        badges.append(f'<span class="meta-chip">🌱 {surface}</span>')
-    if distance:
-        badges.append(f'<span class="meta-chip">📏 {distance}</span>')
-    if race_time:
-        badges.append(f'<span class="meta-chip">🕛 {race_time}</span>')
-    if stake:
-        badges.append(f'<span class="meta-chip">💰 {stake}</span>')
-
-    # Race Number badge - strictly dynamic based on actual current_race
-    badges.append(f'<span class="meta-chip">🏁 Race {current_race}</span>')
-
-    if betting_leg:
-        badges.append(f'<span class="meta-chip">🎫 {betting_leg}</span>')
-
-    if badges:
-        html = f"""
-        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:1rem;">
-          {"".join(badges)}
-        </div>
-        """
-        st.markdown(html, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="race-overview-bar">
+      <div class="meta-chip meta-chip-gold">
+        <span>🏁</span> <strong>Race {current_race}</strong>
+      </div>
+      <div class="meta-chip">
+        <span>📍</span> <span>Course:</span> <strong>{venue} ({surface})</strong>
+      </div>
+      <div class="meta-chip">
+        <span>📏</span> <span>Distance:</span> <strong>{distance}</strong>
+      </div>
+      <div class="meta-chip">
+        <span>🕛</span> <span>Post Time:</span> <strong>{race_time}</strong>
+      </div>
+      <div class="meta-chip">
+        <span>💰</span> <span>Stake:</span> <strong>{stake}</strong>
+      </div>
+      <div class="meta-chip">
+        <span>🎫</span> <span>Leg:</span> <strong>{betting_leg}</strong>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# ─── Race Preview Section ─────────────────────────────────────────────────────
-
-def render_race_preview(horses: list[Horse], extraction: ExtractionResult):
-    """Display extracted horses table with confidence indicator."""
-
-    conf = extraction.confidence
-    conf_label = extraction.confidence_label
-
-    conf_color = {"High": "#00e096", "Medium": "#f5c842", "Low": "#ff5c7a"}[conf_label]
-    conf_bar   = int(conf * 100)
-
-    st.markdown('<div class="section-title">📋 Race Preview — Extracted Horses</div>', unsafe_allow_html=True)
-
-    col_conf, col_pages, col_runners = st.columns(3)
-    col_conf.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-val" style="color:{conf_color};">{conf_bar}%</div>
-      <div class="metric-label">Extraction Confidence ({conf_label})</div>
-    </div>""", unsafe_allow_html=True)
-    col_pages.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-val">{extraction.pages_read}</div>
-      <div class="metric-label">PDF Pages Read</div>
-    </div>""", unsafe_allow_html=True)
-    col_runners.markdown(f"""
-    <div class="metric-card">
-      <div class="metric-val">{len(horses)}</div>
-      <div class="metric-label">Horses Found</div>
-    </div>""", unsafe_allow_html=True)
-
-    if extraction.warnings:
-        with st.expander(f"⚠️ {len(extraction.warnings)} extraction warning(s)"):
-            for w in extraction.warnings:
-                st.write(f"• {w}")
-
-    # Horse table
-    df_preview = pd.DataFrame([{
-        "Draw":    h.draw,
-        "Horse":   h.horse,
-        "Jockey":  h.jockey,
-        "Trainer": h.trainer,
-        "Form":    h.form_string or "—",
-        "Runs":    h.runs,
-        "Wt (kg)": h.weight if h.weight > 0 else "—",
-        "Rating":  h.merit_rating if h.merit_rating is not None else "—",
-    } for h in sorted(horses, key=lambda x: x.draw)])
-
-    st.dataframe(
-        df_preview,
-        use_container_width = True,
-        hide_index          = True,
-        column_config={
-            "Draw":    st.column_config.NumberColumn("Draw", width="small"),
-            "Horse":   st.column_config.TextColumn("Horse", width="medium"),
-            "Form":    st.column_config.TextColumn("Form",  width="medium"),
-            "Runs":    st.column_config.NumberColumn("Runs", width="small"),
-            "Wt (kg)": st.column_config.TextColumn("Wt (kg)", width="small"),
-            "Rating":  st.column_config.TextColumn("Rating",  width="small"),
-        },
-    )
-
-    # Debug Panel
-    with st.expander("🔬 Raw Extracted JSON Debug Panel"):
-        import dataclasses
-        import json
-
-        # Race assignment summary
-        all_races_local = st.session_state.get("all_races", {})
-        if all_races_local:
-            st.markdown("**Race Assignment Summary:**")
-            for rnum in sorted(all_races_local.keys()):
-                names = [getattr(h, "horse", "?") for h in all_races_local[rnum]]
-                st.write(f"Race {rnum}: {len(names)} horses → {', '.join(names[:5])}{'...' if len(names) > 5 else ''}")
-
-        # Raw text preview (first 1000 chars)
-        if extraction.raw_text:
-            st.markdown("**Raw PDF Text (first 1000 chars):**")
-            st.code(extraction.raw_text[:1000], language="text")
-
-        st.markdown("**Full Horse JSON:**")
-        raw_list = [dataclasses.asdict(h) for h in horses]
-        st.json(raw_list)
-
-
-# ─── Odds Input ───────────────────────────────────────────────────────────────
-
-def render_odds_input(horses: list[Horse]) -> dict:
-    """Let user enter/override decimal odds for each horse. Returns odds_map."""
-
-    st.markdown('<div class="section-title">💰 Market Odds (decimal format)</div>', unsafe_allow_html=True)
-    st.caption(
-        "Pre-populated from the ComputaForm F/B forecast. "
-        "Edit any value to use live market odds (e.g. from Hollywood Bets). "
-        "Leave 0 to let the model estimate fair odds from probability."
-    )
-
-    existing = st.session_state.odds_map
-    odds_map = {}
-
-    # Safety: only process horses with a valid .horse attribute
-    valid_horses = [
-        h for h in horses
-        if hasattr(h, "horse") and isinstance(h.horse, str) and len(h.horse) > 2
-    ]
-
-    # Render in 2-column grid
-    cols_per_row = 4
-    horse_list   = sorted(valid_horses, key=lambda h: h.draw)
-    rows         = [horse_list[idx:idx+cols_per_row] for idx in range(0, len(horse_list), cols_per_row)]
-
-    # Include the file ID in the key namespace so Streamlit resets all
-    # number_input widgets when a new PDF is uploaded (avoids stale cached values).
-    file_slot = str(st.session_state.get("_last_file_id", "demo")).replace(" ", "_")
-
-    i = 0
-    for row in rows:
-        cols = st.columns(cols_per_row)
-        for col, horse in zip(cols, row):
-            with col:
-                # Prefer user's previously-entered value, then market_odds (pre-populated
-                # from the PDF), then forecast_odds, then 0.
-                default_val = float(
-                    existing.get(
-                        horse.horse,
-                        getattr(horse, "market_odds", getattr(horse, "forecast_odds", 0.0))
-                    ) or 0.0
-                )
-                val = st.number_input(
-                    label     = f"#{horse.draw} {horse.horse}",
-                    min_value = 0.0,
-                    max_value = 999.0,
-                    value     = default_val,
-                    step      = 0.10,
-                    format    = "%.2f",
-                    key       = f"odds_{file_slot}_{i}_{horse.draw}_{horse.horse.replace(' ','_')}",
-                )
-                odds_map[horse.horse] = val
-                # Show the original ComputaForm F/B forecast as a reference hint
-                fb_str = getattr(horse, "fb_odds_str", "")
-                if fb_str:
-                    st.caption(f"📋 CF Forecast: {fb_str}")
-                i += 1
-
-    st.session_state.odds_map.update(odds_map)  # Bug 6: merge, don't overwrite (preserves other races' odds)
-    return odds_map
-
-
-# ─── Predictions Section ──────────────────────────────────────────────────────
-
-def render_predictions(predictions: list[Prediction], race_name: str):
-    """Display full ranked predictions table + EV summary."""
-
-    st.markdown(f'<div class="section-title">🏆 Predictions — {race_name}</div>', unsafe_allow_html=True)
-
-    _show_metric_row(st.session_state.horses, predictions)
-
-    # ── Value bets callout
-    value_bets = [p for p in predictions if p.value_bet]
-    if value_bets:
-        vb_str = "  |  ".join(f"#{p.draw} **{p.horse}** ({p.ev:+.3f} EV @ {p.odds})" for p in value_bets)
-        st.markdown(f"""
-        <div class="success-banner">
-          ✅ <strong>{len(value_bets)} Value Bet(s) Found:</strong>&nbsp;&nbsp;{vb_str}
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div class="info-banner">
-          ℹ️ No value bets detected at current odds. Consider reviewing the odds or waiting for line movement.
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ── Longshot bets callout
-    longshots = [p for p in predictions if getattr(p, "longshot", False)]
-    if longshots:
-        ls_str = "  |  ".join(f"#{p.draw} **{p.horse}** ({p.ev:+.3f} EV @ {p.odds})" for p in longshots)
-        st.markdown(f"""
-        <div class="success-banner" style="background: rgba(255,92,122,0.08); border: 1px solid rgba(255,92,122,0.25); color: #ff5c7a;">
-          🔥 <strong>{len(longshots)} Longshot Alert(s):</strong>&nbsp;&nbsp;{ls_str}
-        </div>
-        """, unsafe_allow_html=True)
-
-    # ── Build display dataframe
-    rows = []
-    for p in predictions:
-        rows.append({
-            "Rank":        _rank_str(p.rank),
-            "Draw":        p.draw,
-            "Horse":       p.horse,
-            "Jockey":      p.jockey,
-            "Odds":        f"{p.odds:.2f}",
-            "Probability": p.probability,
-            "EV":          p.ev,
-            "Rule Score":  p.rule_score,
-            "Confidence":  p.confidence,
-            "Value Bet":   "✅ Value" if p.value_bet else "—",
-            "Longshot":    "🔥 Longshot" if getattr(p, "longshot", False) else "—",
-        })
-
-    df = pd.DataFrame(rows)
-
-    # Colour EV column
-    def style_table(df_in):
-        styles = pd.DataFrame("", index=df_in.index, columns=df_in.columns)
-        for i, row in df_in.iterrows():
-            if row.get("Value Bet") == "✅ Value":
-                styles.loc[i, :] = "background-color: rgba(0,224,150,0.08);"
-        return styles
-
-    st.dataframe(
-        df,
-        use_container_width = True,
-        hide_index          = True,
-        column_config={
-            "Probability": st.column_config.ProgressColumn(
-                "Probability",
-                min_value = 0.0,
-                max_value = 1.0,
-                format    = "%.1f%%",
-            ),
-            "EV": st.column_config.NumberColumn(
-                "EV",
-                format = "%+.3f",
-            ),
-            "Rule Score": st.column_config.ProgressColumn(
-                "Rule Score",
-                min_value = 0.0,
-                max_value = 1.0,
-                format    = "%.3f",
-            ),
-            "Rank":  st.column_config.TextColumn("Rank",  width="small"),
-            "Draw":  st.column_config.NumberColumn("Draw", width="small"),
-            "Odds":  st.column_config.TextColumn("Odds",  width="small"),
-        },
-    )
-
-    # ── Detailed EV breakdown (expander)
-    with st.expander("📊 Detailed EV Breakdown"):
-        ev_rows = []
-        for p in predictions:
-            ev_rows.append({
-                "Horse":          p.horse,
-                "Model Prob":     f"{p.probability*100:.2f}%",
-                "Implied Prob":   f"{p.implied_prob*100:.2f}%" if p.odds > 1 else "—",
-                "Edge":           f"{(p.probability - p.implied_prob)*100:+.2f}%" if p.odds > 1 else "—",
-                "Decimal Odds":   p.odds,
-                "EV":             f"{p.ev:+.4f}",
-                "EV Indicator":   _ev_color(p.ev),
-                "Confidence":     p.confidence,
-                "Longshot":       "🔥 Yes" if getattr(p, "longshot", False) else "—",
-            })
-        st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
-
-
-# ─── Exotics Intelligence Section ─────────────────────────────────────────────
-
-def render_exotics_intelligence(results: list, all_results: dict = None, current_race: int = 1):
-    """
-    Exotics Intelligence Panel
-    Provides quantitative probability-derived exotic betting predictions (Exacta, Trifecta,
-    Quartet, Swinger) and multi-race meeting permutations.
-    """
+def render_featured_prediction(results: list, race_horses: list):
+    """Renders the prominent Top Prediction card without crowding the screen."""
     if not results:
         return
 
-    st.markdown('<div class="section-title">🧬 Exotics Intelligence Panel</div>', unsafe_allow_html=True)
-    st.caption("Quantitative probability-derived exotic betting calculations, optimal combinations, and multi-race permutations.")
+    top_horse = results[0]
+    top_name = top_horse.horse
+    top_draw = top_horse.draw
+    top_prob = top_horse.probability * 100
+    top_odds = top_horse.odds
+    top_ev = top_horse.ev
+    top_conf = getattr(top_horse, "confidence", "High")
 
-    tab_single, tab_multi = st.tabs([
+    matching = next((h for h in race_horses if (h.get("horse", "") if hasattr(h, "get") else getattr(h, "horse", "")) == top_name), None)
+    trainer = top_horse.trainer if top_horse.trainer else (getattr(matching, "trainer", "N/A") if matching else "N/A")
+    jockey = top_horse.jockey if top_horse.jockey else (getattr(matching, "jockey", "N/A") if matching else "N/A")
+
+    ev_color = "var(--indicator-green)" if top_ev > 0 else "var(--indicator-red)"
+    ev_sign = "+" if top_ev > 0 else ""
+
+    col_hero, col_metrics = st.columns([1.4, 1])
+
+    with col_hero:
+        st.markdown(f"""
+        <div class="card-featured-top">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; color:var(--accent-gold); letter-spacing:0.08em;">
+                🏆 TOP QUANT SELECTION · RANK 1
+              </span>
+              <span style="background:var(--accent-gold-dim); color:var(--accent-gold); font-size:10px; font-weight:700; padding:2px 8px; border-radius:12px; border:1px solid rgba(229,173,36,0.3);">
+                {top_conf} Confidence
+              </span>
+            </div>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--text-secondary);">
+              Draw #{top_draw}
+            </span>
+          </div>
+
+          <div style="font-family:'Outfit', sans-serif; font-size:1.85rem; font-weight:900; color:#FFFFFF; margin-bottom:0.35rem; line-height:1.15;">
+            #{top_draw} {top_name}
+          </div>
+
+          <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.25rem;">
+            <span>Trainer: <strong style="color:var(--text-primary);">{trainer}</strong></span> ·
+            <span>Jockey: <strong style="color:var(--text-primary);">{jockey}</strong></span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; border-top:1px dashed var(--border-subtle); padding-top:1rem;">
+            <div>
+              <div style="font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">WIN PROBABILITY</div>
+              <div style="font-family:'JetBrains Mono', monospace; font-size:1.35rem; font-weight:800; color:var(--accent-gold);">{top_prob:.1f}%</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">MARKET ODDS</div>
+              <div style="font-family:'JetBrains Mono', monospace; font-size:1.35rem; font-weight:800; color:var(--text-primary);">{top_odds:.2f}</div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">EXPECTED VALUE</div>
+              <div style="font-family:'JetBrains Mono', monospace; font-size:1.35rem; font-weight:800; color:{ev_color};">{ev_sign}{top_ev:.3f}</div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_metrics:
+        # Confidence & Race Matrix preview
+        all_results = st.session_state.get("all_results", {})
+        grid_items = []
+        for r_num in sorted(st.session_state.get("all_races", {}).keys()):
+            r_preds = all_results.get(r_num, [])
+            if r_preds:
+                r_top = r_preds[0]
+                ev_val = getattr(r_top, "ev", 0.0)
+                bg = "rgba(22,199,132,0.12)" if ev_val > 0.05 else "rgba(255,255,255,0.03)"
+                brd = "var(--indicator-green)" if ev_val > 0.05 else "var(--border-subtle)"
+                txt = "var(--indicator-green)" if ev_val > 0.05 else "var(--text-secondary)"
+                grid_items.append(
+                    f'<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:44px; height:44px; background:{bg}; border:1px solid {brd}; border-radius:8px; font-size:0.75rem; font-weight:700; color:{txt};" title="Race {r_num} EV: {ev_val:+.2f}">'
+                    f'<span>R{r_num}</span><span style="font-size:9px; font-weight:500;">{ev_val:+.1f}</span></div>'
+                )
+            else:
+                grid_items.append(
+                    f'<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:44px; height:44px; background:rgba(255,255,255,0.02); border:1px solid var(--border-subtle); border-radius:8px; font-size:0.75rem; font-weight:700; color:var(--text-muted);">'
+                    f'<span>R{r_num}</span></div>'
+                )
+
+        grid_html = "".join(grid_items)
+
+        st.markdown(f"""
+        <div class="terminal-card" style="height:100%; display:flex; flex-direction:column; justify-content:space-between;">
+          <div>
+            <div style="font-size:0.75rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.75rem;">
+              ⚖️ Meeting Expected Value Matrix
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:0.75rem;">
+              {grid_html}
+            </div>
+          </div>
+          <div style="background:rgba(229,173,36,0.06); border:1px solid rgba(229,173,36,0.2); border-radius:8px; padding:8px 12px; font-size:0.78rem; color:var(--accent-gold);">
+            💡 Green indicates positive market expectation (overlay). Select races in the sidebar to review individual odds.
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_rankings_table(results: list, race_horses: list):
+    """Renders the comprehensive rankings table with clean typography and spacing."""
+    if not results:
+        return
+
+    table_rows_list = []
+    for p in results:
+        rank_val = p.rank
+        rank_display = f"#{rank_val}"
+        row_cls = ""
+
+        if rank_val == 1:
+            rank_display = "🏆 1"
+            row_cls = "top-pick-row"
+        elif rank_val == 2:
+            rank_display = "🥈 2"
+            row_cls = "rank-2-row"
+        elif rank_val == 3:
+            rank_display = "🥉 3"
+            row_cls = "rank-3-row"
+
+        # Matching Horse object for metadata
+        matching = next((h for h in race_horses if (h.get("horse", "") if hasattr(h, "get") else getattr(h, "horse", "")) == p.horse), None)
+        weight_val = matching.get("weight", 56.0) if hasattr(matching, "get") else getattr(matching, "weight", 56.0) if matching else 56.0
+
+        # Form pill representation
+        form_figs = matching.form_figures if hasattr(matching, "form_figures") else []
+        form_html = ""
+        for fig in form_figs[-5:]:
+            fig_str = str(fig) if fig != 99 else "0"
+            bg_c = "var(--accent-gold)" if fig_str == "1" else "var(--indicator-green)" if fig_str in ("2", "3") else "rgba(255,255,255,0.06)"
+            form_html += f'<span class="form-box" style="background:{bg_c};">{fig_str}</span>'
+
+        if not form_html:
+            form_str = matching.form_string if hasattr(matching, "form_string") else ""
+            form_html = f'<span style="font-family:monospace; color:var(--text-secondary);">{form_str or "N/A"}</span>'
+
+        # Signal tags
+        signal_tags = []
+        if getattr(p, "value_bet", False):
+            signal_tags.append('<span class="signal-tag signal-value">VALUE WIN</span>')
+        if getattr(p, "longshot", False) or (p.odds >= 10.0 and p.ev > 0.0):
+            signal_tags.append('<span class="signal-tag signal-longshot">LONGSHOT</span>')
+        signals_display = " ".join(signal_tags) if signal_tags else '<span style="color:var(--text-muted);">—</span>'
+
+        ev_color = "var(--indicator-green)" if p.ev > 0 else "var(--indicator-red)"
+        ev_sign = "+" if p.ev > 0 else ""
+        trainer_display = p.trainer or "Trainer N/A"
+        jockey_display = p.jockey or "Jockey N/A"
+
+        row_str = f"""<tr class="{row_cls}">
+<td style="font-weight:700; font-family:'Outfit',sans-serif;">{rank_display}</td>
+<td style="font-family:'JetBrains Mono',monospace; color:var(--text-secondary);">#{p.draw}</td>
+<td>
+  <div style="font-weight:700; color:var(--text-primary); font-size:0.92rem;">{p.horse}</div>
+  <div style="font-size:0.75rem; color:var(--text-muted);">{trainer_display}</div>
+</td>
+<td style="color:var(--text-secondary); font-size:0.85rem;">{jockey_display}</td>
+<td style="font-family:'JetBrains Mono',monospace; font-size:0.85rem;">{weight_val:.1f} kg</td>
+<td>{form_html}</td>
+<td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--accent-gold);">{p.odds:.2f}</td>
+<td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text-primary);">{p.probability * 100:.1f}%</td>
+<td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:{ev_color};">{ev_sign}{p.ev:.3f}</td>
+<td>{signals_display}</td>
+</tr>"""
+        table_rows_list.append(row_str)
+
+    table_rows_str = "\n".join(table_rows_list)
+    table_html = f"""<div class="table-responsive-container">
+<table class="terminal-data-table">
+<thead>
+<tr>
+  <th style="width:65px;">RNK</th>
+  <th style="width:55px;">DR</th>
+  <th>HORSE &amp; TRAINER</th>
+  <th>JOCKEY</th>
+  <th style="width:80px;">WEIGHT</th>
+  <th>RECENT FORM</th>
+  <th style="width:75px;">ODDS</th>
+  <th style="width:85px;">WIN PROB</th>
+  <th style="width:85px;">EXP. VALUE</th>
+  <th>SIGNALS</th>
+</tr>
+</thead>
+<tbody>
+{table_rows_str}
+</tbody>
+</table>
+</div>"""
+    st.markdown(table_html, unsafe_allow_html=True)
+
+
+def render_value_bets_panel(results: list):
+    """Renders detected value bets and overlays for the current race."""
+    value_bets = [p for p in results if getattr(p, "value_bet", False)]
+    longshots = [p for p in results if getattr(p, "longshot", False) or (p.odds >= 10.0 and p.ev > 0.0)]
+
+    if value_bets:
+        cards_html_list = []
+        for vb in value_bets:
+            card_str = f"""<div style="background:rgba(22,199,132,0.06); border:1px solid rgba(22,199,132,0.25); border-radius:8px; padding:12px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+<div>
+  <span style="font-weight:800; font-size:0.95rem; color:var(--text-primary);">#{vb.draw} {vb.horse}</span>
+  <span class="signal-tag signal-value" style="margin-left:8px;">VALUE OVERLAY</span>
+  <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">Model: {vb.probability*100:.1f}% vs Market Implied: {vb.implied_prob*100:.1f}%</div>
+</div>
+<div style="text-align:right;">
+  <div style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--accent-gold); font-size:1.05rem;">{vb.odds:.2f}</div>
+  <div style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--indicator-green); font-size:0.85rem;">{vb.ev:+.3f} EV</div>
+</div>
+</div>"""
+            cards_html_list.append(card_str)
+        cards_html_str = "\n".join(cards_html_list)
+        vb_html = f"""<div class="terminal-card">
+<div style="font-size:0.75rem; font-weight:800; color:var(--indicator-green); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.75rem;">
+  ✅ Value Bets Detected in this Race
+</div>
+{cards_html_str}
+</div>"""
+        st.markdown(vb_html, unsafe_allow_html=True)
+    else:
+        empty_html = """<div style="background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 12px 16px; margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-secondary); display:flex; align-items:center; gap:8px;">
+<span>ℹ️</span> <span>No mathematical overlays (EV &gt; 5%) detected at current prices. Line movements or live pool odds may unlock value.</span>
+</div>"""
+        st.markdown(empty_html, unsafe_allow_html=True)
+
+
+def render_odds_editor(race_horses: list) -> dict:
+    """Render compact, collapsible odds editor."""
+    with st.expander("✏️ Review & Adjust Live Market Odds"):
+        st.caption("Adjust decimal odds to reflect live price fluctuations before regenerating predictions.")
+        existing = st.session_state.odds_map
+        odds_map = {}
+        cols_per_row = 4
+        rows = [race_horses[idx:idx+cols_per_row] for idx in range(0, len(race_horses), cols_per_row)]
+        file_slot = str(st.session_state.get("_last_file_id", "demo")).replace(" ", "_")
+
+        for r_idx, row in enumerate(rows):
+            cols = st.columns(cols_per_row)
+            for c_idx, horse in enumerate(row):
+                with cols[c_idx]:
+                    h_name = getattr(horse, "horse", "Runner")
+                    h_draw = getattr(horse, "draw", 0)
+                    default_val = float(
+                        existing.get(h_name, getattr(horse, "market_odds", getattr(horse, "forecast_odds", 0.0))) or 0.0
+                    )
+                    val = st.number_input(
+                        label=f"#{h_draw} {h_name}",
+                        min_value=0.0,
+                        max_value=999.0,
+                        value=default_val,
+                        step=0.10,
+                        format="%.2f",
+                        key=f"odds_{file_slot}_{r_idx}_{c_idx}_{h_draw}",
+                    )
+                    odds_map[h_name] = val
+
+        st.session_state.odds_map.update(odds_map)
+        return odds_map
+
+
+def render_exotics_intelligence(results: list, all_results: dict = None, current_race: int = 1):
+    """Renders Exacta, Swinger, Trifecta, Quartet, and multi-race perm panels in spacious cards."""
+    if not results:
+        st.info("No race prediction results available. Please run predictions first.")
+        return
+
+    subtab_single, subtab_multi = st.tabs([
         f"🎯 Race {current_race} Single-Race Exotics",
-        "🏆 Meeting Multi-Race Permutations"
+        "🏆 Meeting Multi-Race Permutations (Pick 6, BiPot, Jackpot)"
     ])
 
     def _g(p, attr, default=None):
-        if hasattr(p, attr):
-            return getattr(p, attr)
-        if isinstance(p, dict):
-            return p.get(attr, default)
-        return default
+        return getattr(p, attr, default) if hasattr(p, attr) else p.get(attr, default) if isinstance(p, dict) else default
 
     sorted_p = sorted(results, key=lambda x: _g(x, "rank", 99))
-
     def name(p): return _g(p, "horse", "Unknown")
     def draw(p): return _g(p, "draw", 0)
     def prob(p): return float(_g(p, "probability", 0.0))
-    def odds(p): return float(_g(p, "odds", 10.0))
 
     tot_p = sum(prob(p) for p in sorted_p)
     norm_p = [prob(p) / tot_p if tot_p > 0 else 1.0 / len(sorted_p) for p in sorted_p]
 
-    with tab_single:
-        if len(sorted_p) >= 2:
-            p1, p2 = norm_p[0], norm_p[1]
-            h1, h2 = sorted_p[0], sorted_p[1]
+    with subtab_single:
+        col_exacta, col_swinger = st.columns(2)
 
-            denom1 = max(1.0 - p1, 1e-5)
-            exacta_prob = p1 * (p2 / denom1)
-            exacta_fair_odds = 1.0 / exacta_prob if exacta_prob > 0 else 999.0
+        with col_exacta:
+            if len(sorted_p) >= 2:
+                p1, p2 = norm_p[0], norm_p[1]
+                denom1 = max(1.0 - p1, 1e-5)
+                exacta_prob = p1 * (p2 / denom1)
+                exacta_fair_odds = 1.0 / exacta_prob if exacta_prob > 0 else 999.0
+                h1, h2 = sorted_p[0], sorted_p[1]
 
-            col_ex, col_sw = st.columns(2)
-            with col_ex:
                 st.markdown(f"""
-                <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; height:100%;">
-                  <div style="font-size:0.75rem; font-weight:800; color:var(--gold); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.5rem;">
-                    🎯 EXACTA INTELLIGENCE (1st &amp; 2nd)
-                  </div>
-                  <div style="background:rgba(212,169,42,0.08); border:1px solid rgba(212,169,42,0.25); border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">
-                    <div style="font-size:0.75rem; color:var(--muted-foreground);">Top Model Straight Exacta</div>
-                    <div style="font-size:1.1rem; font-weight:800; color:#fff; font-family:'Outfit',sans-serif; margin:4px 0;">
-                      #{draw(h1)} {name(h1)} <span style="color:var(--gold);">➔</span> #{draw(h2)} {name(h2)}
+                <div class="exotics-card">
+                  <div>
+                    <div class="exotics-card-header" style="color:var(--accent-gold);">
+                      <span>🎯 EXACTA INTELLIGENCE (1st &amp; 2nd)</span>
+                      <span style="font-size:0.7rem; color:var(--text-muted);">HARVILLE MODEL</span>
                     </div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-top:6px;">
-                      <span>Model Probability: <strong style="color:var(--green-win);">{exacta_prob*100:.2f}%</strong></span>
-                      <span>Fair Odds: <strong style="color:var(--gold);">{exacta_fair_odds:.1f}/1</strong></span>
+                    <div class="combo-box">
+                      <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Top Model Straight Exacta</div>
+                      <div style="font-size:1.15rem; font-weight:800; color:#FFFFFF; font-family:'Outfit',sans-serif; margin-bottom:8px;">
+                        #{draw(h1)} {name(h1)} <span style="color:var(--accent-gold);">➔</span> #{draw(h2)} {name(h2)}
+                      </div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.8rem; border-top:1px dashed var(--border-subtle); padding-top:6px;">
+                        <span>Model Probability: <strong style="color:var(--indicator-green); font-family:'JetBrains Mono',monospace;">{exacta_prob*100:.2f}%</strong></span>
+                        <span>Fair Odds: <strong style="color:var(--accent-gold); font-family:'JetBrains Mono',monospace;">{exacta_fair_odds:.1f}/1</strong></span>
+                      </div>
                     </div>
                   </div>
-                  <div style="font-size:0.8rem; color:var(--foreground);">
-                    <strong>Exacta Box (Top 3):</strong> #{draw(sorted_p[0])}, #{draw(sorted_p[1])}, #{draw(sorted_p[2]) if len(sorted_p)>2 else ''}<br>
-                    <span style="font-size:0.75rem; color:var(--muted-foreground);">6 Combinations · Cost: R6 @ R1/unit</span>
+                  <div style="font-size:0.8rem; color:var(--text-secondary); line-height:1.45; border-top:1px solid var(--border-subtle); padding-top:8px;">
+                    <div><strong>Exacta Box (Top 3):</strong> #{draw(sorted_p[0])}, #{draw(sorted_p[1])}, #{draw(sorted_p[2]) if len(sorted_p)>2 else ''}</div>
+                    <div style="color:var(--text-muted); font-size:0.75rem;">6 Combinations · Cost: R6 @ R1 unit</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            with col_sw:
-                sw1 = f"#{draw(h1)} {name(h1)} + #{draw(h2)} {name(h2)}"
+        with col_swinger:
+            if len(sorted_p) >= 2:
+                h1, h2 = sorted_p[0], sorted_p[1]
                 h3 = sorted_p[2] if len(sorted_p) > 2 else h2
+                sw1 = f"#{draw(h1)} {name(h1)} + #{draw(h2)} {name(h2)}"
                 sw2 = f"#{draw(h1)} {name(h1)} + #{draw(h3)} {name(h3)}"
                 sw3 = f"#{draw(h2)} {name(h2)} + #{draw(h3)} {name(h3)}"
 
                 st.markdown(f"""
-                <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; height:100%;">
-                  <div style="font-size:0.75rem; font-weight:800; color:#5c9fff; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.5rem;">
-                    🔄 SWINGER INTELLIGENCE (Any 2 in Top 3)
+                <div class="exotics-card">
+                  <div>
+                    <div class="exotics-card-header" style="color:var(--accent-blue);">
+                      <span>🔄 SWINGER INTELLIGENCE (Any 2 in Top 3)</span>
+                      <span style="font-size:0.7rem; color:var(--text-muted);">TOP COMBOS</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:0.75rem;">
+                      <div style="background:var(--accent-blue-dim); border:1px solid rgba(77,136,255,0.25); border-radius:6px; padding:7px 10px; font-size:0.82rem; font-weight:700; color:#FFFFFF;">
+                        ⭐ Primary Swinger: {sw1}
+                      </div>
+                      <div style="background:var(--bg-card-subtle); border:1px solid var(--border-subtle); border-radius:6px; padding:7px 10px; font-size:0.82rem; color:var(--text-secondary);">
+                        🔹 Secondary Swinger: {sw2}
+                      </div>
+                      <div style="background:var(--bg-card-subtle); border:1px solid var(--border-subtle); border-radius:6px; padding:7px 10px; font-size:0.82rem; color:var(--text-secondary);">
+                        🔹 Coverage Swinger: {sw3}
+                      </div>
+                    </div>
                   </div>
-                  <div style="display:flex; flex-direction:column; gap:6px;">
-                    <div style="background:rgba(92,159,255,0.06); border:1px solid rgba(92,159,255,0.2); border-radius:6px; padding:6px 10px; font-size:0.82rem; font-weight:700; color:#fff;">
-                      ⭐ Primary Swinger: {sw1}
-                    </div>
-                    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:6px 10px; font-size:0.82rem; color:var(--muted-foreground);">
-                      🔹 Secondary Swinger: {sw2}
-                    </div>
-                    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; padding:6px 10px; font-size:0.82rem; color:var(--muted-foreground);">
-                      🔹 Coverage Swinger: {sw3}
-                    </div>
+                  <div style="font-size:0.8rem; color:var(--text-secondary); border-top:1px solid var(--border-subtle); padding-top:8px;">
+                    <div><strong>Swinger Box (Top 3):</strong> 3 Combinations · Cost: R3 @ R1 unit</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-        st.markdown("<div style='height:0.8rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:0.5rem;'></div>", unsafe_allow_html=True)
 
-        if len(sorted_p) >= 3:
-            p1, p2, p3 = norm_p[0], norm_p[1], norm_p[2]
-            h1, h2, h3 = sorted_p[0], sorted_p[1], sorted_p[2]
+        col_trifecta, col_quartet = st.columns(2)
 
-            denom1 = max(1.0 - p1, 1e-5)
-            denom2 = max(1.0 - p1 - p2, 1e-5)
-            trifecta_prob = p1 * (p2 / denom1) * (p3 / denom2)
-            trifecta_fair_odds = 1.0 / trifecta_prob if trifecta_prob > 0 else 999.0
+        with col_trifecta:
+            if len(sorted_p) >= 3:
+                p1, p2, p3 = norm_p[0], norm_p[1], norm_p[2]
+                denom1 = max(1.0 - p1, 1e-5)
+                denom2 = max(1.0 - p1 - p2, 1e-5)
+                trifecta_prob = p1 * (p2 / denom1) * (p3 / denom2)
+                trifecta_fair_odds = 1.0 / trifecta_prob if trifecta_prob > 0 else 999.0
+                h1, h2, h3 = sorted_p[0], sorted_p[1], sorted_p[2]
 
-            col_tri, col_qrt = st.columns(2)
-            with col_tri:
                 st.markdown(f"""
-                <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; height:100%;">
-                  <div style="font-size:0.75rem; font-weight:800; color:var(--green-win); text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.5rem;">
-                    🏆 TRIFECTA INTELLIGENCE (1st, 2nd, 3rd)
-                  </div>
-                  <div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.25); border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">
-                    <div style="font-size:0.75rem; color:var(--muted-foreground);">Top Straight Trifecta</div>
-                    <div style="font-size:1rem; font-weight:800; color:#fff; font-family:'Outfit',sans-serif; margin:4px 0;">
-                      #{draw(h1)} {name(h1)} <span style="color:var(--green-win);">➔</span> #{draw(h2)} {name(h2)} <span style="color:var(--green-win);">➔</span> #{draw(h3)} {name(h3)}
+                <div class="exotics-card">
+                  <div>
+                    <div class="exotics-card-header" style="color:var(--indicator-green);">
+                      <span>🏆 TRIFECTA INTELLIGENCE (1st, 2nd, 3rd)</span>
+                      <span style="font-size:0.7rem; color:var(--text-muted);">SEQUENTIAL</span>
                     </div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.8rem; margin-top:6px;">
-                      <span>Model Prob: <strong style="color:var(--green-win);">{trifecta_prob*100:.2f}%</strong></span>
-                      <span>Fair Odds: <strong style="color:var(--gold);">{trifecta_fair_odds:.1f}/1</strong></span>
+                    <div class="combo-box">
+                      <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Top Straight Trifecta</div>
+                      <div style="font-size:1.05rem; font-weight:800; color:#FFFFFF; font-family:'Outfit',sans-serif; margin-bottom:8px;">
+                        #{draw(h1)} {name(h1)} <span style="color:var(--indicator-green);">➔</span> #{draw(h2)} {name(h2)} <span style="color:var(--indicator-green);">➔</span> #{draw(h3)} {name(h3)}
+                      </div>
+                      <div style="display:flex; justify-content:space-between; font-size:0.8rem; border-top:1px dashed var(--border-subtle); padding-top:6px;">
+                        <span>Model Prob: <strong style="color:var(--indicator-green); font-family:'JetBrains Mono',monospace;">{trifecta_prob*100:.2f}%</strong></span>
+                        <span>Fair Odds: <strong style="color:var(--accent-gold); font-family:'JetBrains Mono',monospace;">{trifecta_fair_odds:.1f}/1</strong></span>
+                      </div>
                     </div>
                   </div>
-                  <div style="font-size:0.8rem; color:var(--foreground); line-height:1.4;">
-                    <strong>Banker Trifecta:</strong> Standout #{draw(h1)} with #{draw(h2)}, #{draw(h3)}, #{draw(sorted_p[3]) if len(sorted_p)>3 else ''} (6 combos)<br>
-                    <strong>Trifecta Box (Top 4):</strong> 24 Combinations · Cost: R24 @ R1/unit
+                  <div style="font-size:0.8rem; color:var(--text-secondary); line-height:1.45; border-top:1px solid var(--border-subtle); padding-top:8px;">
+                    <div><strong>Banker Trifecta:</strong> #{draw(h1)} with #{draw(h2)}, #{draw(h3)}, #{draw(sorted_p[3]) if len(sorted_p)>3 else ''} (6 combos)</div>
+                    <div style="color:var(--text-muted); font-size:0.75rem;">Trifecta Box (Top 4): 24 Combos · Cost: R24 @ R1 unit</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            with col_qrt:
+        with col_quartet:
+            if len(sorted_p) >= 3:
+                h1, h2, h3 = sorted_p[0], sorted_p[1], sorted_p[2]
                 h4 = sorted_p[3] if len(sorted_p) > 3 else h3
                 quartet_str = f"#{draw(h1)} {name(h1)} ➔ #{draw(h2)} {name(h2)} ➔ #{draw(h3)} {name(h3)} ➔ #{draw(h4)} {name(h4)}"
+
                 st.markdown(f"""
-                <div style="background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; height:100%;">
-                  <div style="font-size:0.75rem; font-weight:800; color:#a78bfa; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:0.5rem;">
-                    👑 QUARTET INTELLIGENCE (1st, 2nd, 3rd, 4th)
-                  </div>
-                  <div style="background:rgba(167,139,250,0.08); border:1px solid rgba(167,139,250,0.25); border-radius:8px; padding:0.8rem; margin-bottom:0.8rem;">
-                    <div style="font-size:0.75rem; color:var(--muted-foreground);">Top Straight Quartet</div>
-                    <div style="font-size:0.92rem; font-weight:800; color:#fff; font-family:'Outfit',sans-serif; margin:4px 0;">
-                      {quartet_str}
+                <div class="exotics-card">
+                  <div>
+                    <div class="exotics-card-header" style="color:var(--accent-purple);">
+                      <span>👑 QUARTET INTELLIGENCE (1st–4th)</span>
+                      <span style="font-size:0.7rem; color:var(--text-muted);">TOP COMBOS</span>
+                    </div>
+                    <div class="combo-box">
+                      <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Top Straight Quartet</div>
+                      <div style="font-size:0.95rem; font-weight:800; color:#FFFFFF; font-family:'Outfit',sans-serif; margin-bottom:8px;">
+                        {quartet_str}
+                      </div>
                     </div>
                   </div>
-                  <div style="font-size:0.8rem; color:var(--foreground); line-height:1.4;">
-                    <strong>Banker Quartet:</strong> Banker #{draw(h1)} 1st, Box rest (24 combos)<br>
-                    <strong>Quartet Box (Top 4):</strong> 24 Combinations · Cost: R24 @ R1/unit
+                  <div style="font-size:0.8rem; color:var(--text-secondary); line-height:1.45; border-top:1px solid var(--border-subtle); padding-top:8px;">
+                    <div><strong>Banker Quartet:</strong> Banker #{draw(h1)} 1st, Box {draw(h2)}, {draw(h3)}, {draw(h4)} (6 combos)</div>
+                    <div style="color:var(--text-muted); font-size:0.75rem;">Quartet Box (Top 4): 24 Combos · Cost: R24 @ R1 unit</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    with tab_multi:
+        with st.expander("📐 Harville Formula & Exotics Mathematical Derivation"):
+            st.latex(r"P(i \text{ 1st}, j \text{ 2nd}) = P(i) \times \frac{P(j)}{1 - P(i)}")
+            st.latex(r"P(i \text{ 1st}, j \text{ 2nd}, k \text{ 3rd}) = P(i) \times \frac{P(j)}{1 - P(i)} \times \frac{P(k)}{1 - P(i) - P(j)}")
+            st.caption("Fair market odds equal the mathematical reciprocal of sequential conditional probabilities.")
+
+    with subtab_multi:
         all_r = all_results if all_results else {}
         perms_text = generate_perms_block(all_r)
 
-        st.markdown("""
-        <div style="font-size:0.88rem; color:var(--muted-foreground); margin-bottom:0.75rem;">
-          Multi-race permutations automatically structure optimal selections based on quantitative win probabilities across all meeting races.
+        if perms_text and "(Not enough races" not in perms_text:
+            st.markdown("""
+            <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:0.75rem;">
+              Multi-race permutations structure optimal Banker and Contender selections derived from model probabilities across all meeting legs.
+            </div>
+            """, unsafe_allow_html=True)
+            st.code(perms_text, language="text")
+        else:
+            st.info("ℹ️ Multi-race permutations require meeting predictions across at least 4 races. Generate meeting predictions to unlock Pick 6, BiPot, and Jackpot perm cards.")
+
+
+def render_quantitative_analytics(results: list, all_results: dict):
+    """Renders gauges, meeting analytics, and model feature breakdowns."""
+    if not results:
+        st.info("Run predictions to display quantitative analytics.")
+        return
+
+    col_g1, col_g2, col_stats = st.columns([1, 1, 1.5])
+
+    top_prob_val = results[0].probability * 100 if results else 0
+    all_evs = [p.ev for r_k, r_list in all_results.items() for p in r_list] if all_results else [p.ev for p in results]
+    meeting_avg_ev = sum(all_evs) / len(all_evs) if all_evs else 0.0
+
+    this_race_pct = min(max(int((top_prob_val / 50.0) * 100), 0), 100)
+    meet_avg_pct = min(max(int((meeting_avg_ev + 0.15) / 0.3 * 100), 0), 100)
+
+    with col_g1:
+        st.markdown(f"""
+        <div class="terminal-card" style="text-align:center; height:100%;">
+          <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.5rem;">
+            TOP PICK CONFIDENCE
+          </div>
+          <svg viewBox="0 0 36 36" class="circular-chart" style="stroke:var(--accent-gold);">
+            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="circle" stroke-dasharray="{this_race_pct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <text x="18" y="20.3" class="percentage">{top_prob_val:.0f}%</text>
+          </svg>
+          <div style="font-size:0.78rem; font-weight:600; color:var(--text-primary); margin-top:4px;">This Race Win Prob</div>
         </div>
         """, unsafe_allow_html=True)
 
-        if perms_text and "(Not enough races" not in perms_text:
-            st.code(perms_text, language="text")
-        else:
-            st.info("ℹ️ Generate predictions across all races in the meeting to view Pick 6, BiPot, and Jackpot permutations.")
+    with col_g2:
+        st.markdown(f"""
+        <div class="terminal-card" style="text-align:center; height:100%;">
+          <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.5rem;">
+            MEETING EV METRIC
+          </div>
+          <svg viewBox="0 0 36 36" class="circular-chart" style="stroke:var(--indicator-green);">
+            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="circle" stroke-dasharray="{meet_avg_pct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <text x="18" y="20.3" class="percentage">{meeting_avg_ev:+.2f}</text>
+          </svg>
+          <div style="font-size:0.78rem; font-weight:600; color:var(--text-primary); margin-top:4px;">Average Expected Value</div>
+        </div>
+        """, unsafe_allow_html=True)
 
+    with col_stats:
+        total_races_analyzed = len(all_results)
+        total_val_bets = sum(1 for r_k, r_list in all_results.items() for p in r_list if getattr(p, "value_bet", False))
+        ev_class = "var(--indicator-green)" if meeting_avg_ev > 0 else "var(--indicator-red)"
 
-# ─── Feature Debug Expander ───────────────────────────────────────────────────
+        st.markdown(f"""
+        <div class="terminal-card" style="height:100%;">
+          <div style="font-size:0.72rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.75rem;">
+            MEETING LEVEL QUANT SUMMARY
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:0.85rem;">
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--text-secondary);">Races Evaluated</span>
+              <span style="font-weight:700; color:#FFFFFF;">{total_races_analyzed}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--text-secondary);">Detected Value Bets</span>
+              <span style="font-weight:700; color:var(--indicator-green);">{total_val_bets}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--text-secondary);">Meeting Average EV</span>
+              <span style="font-weight:700; color:{ev_class};">{meeting_avg_ev:+.3f}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between;">
+              <span style="color:var(--text-secondary);">Model Status</span>
+              <span style="font-weight:700; color:var(--accent-gold);">Calibrated</span>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-def render_model_debug(predictions: list[Prediction]):
-    with st.expander("🔬 Model Feature Breakdown (Advanced)"):
+    # Progressive disclosure: Model Feature Breakdown
+    with st.expander("🔬 Model Feature Breakdown (Advanced Quantitative Attributes)"):
         feature_names = [
             "Draw Bias", "Form Score", "Jockey WR", "Trainer WR",
             "Weight Penalty", "Rating Norm", "Experience",
             "Field Size Norm", "Has Form", "Win Rate (Form)",
             "Top-3 Rate (Form)", "Composite v3.8",
         ]
-        rows = []
-        for p in predictions:
-            row = {"Horse": p.horse, "Rank": p.rank}
-            for name, val in zip(feature_names, p.features):
-                row[name] = round(val, 3)
-            rows.append(row)
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        feat_rows = []
+        for p in results:
+            if hasattr(p, "features") and p.features:
+                row = {"Horse": p.horse, "Rank": p.rank}
+                for name_f, val_f in zip(feature_names, p.features):
+                    row[name_f] = round(val_f, 3)
+                feat_rows.append(row)
+        if feat_rows:
+            st.dataframe(pd.DataFrame(feat_rows), use_container_width=True, hide_index=True)
+        else:
+            st.caption("Feature vectors generated in standard mode.")
 
 
-# ─── Main App ─────────────────────────────────────────────────────────────────
-
-def main():
-    # Hero header
+def render_terminal_export_and_diagnostics(results: list, all_results: dict, current_race: int, race_horses: list, extraction: ExtractionResult):
+    """Renders copyable monospace terminal tables, summaries, and raw extraction debug panel."""
     st.markdown("""
-    <div class="hero-header">
-      <div class="hero-icon">🏇</div>
-      <div>
-        <div class="hero-title">SA Quant Racing Predictor</div>
-        <div class="hero-sub">
-          Upload a PhotoForm PDF · Extract horses · Generate ranked predictions with EV &amp; value bets
-        </div>
-      </div>
+    <div style="font-size:0.75rem; font-weight:800; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0.75rem;">
+      📋 Terminal Text Output &amp; Diagnostics
     </div>
     """, unsafe_allow_html=True)
 
-    # Sidebar
+    races_meta_dict = st.session_state.get("races_meta", {})
+    curr_meta_data = races_meta_dict.get(current_race, {})
+    curr_race_time = curr_meta_data.get("race_time", "12:15")
+    raw_dist = curr_meta_data.get("distance", "")
+    curr_race_dist = str(raw_dist).replace("m", "").strip() if raw_dist else str(st.session_state.get("distance_selector", 1200))
+    curr_race_class = st.session_state.get("race_class_selector", "Stakes")
+
+    with st.expander("📄 Monospace Race Results Table (Copyable)"):
+        table_str = generate_v311_table_string(
+            results=results,
+            race_num=current_race,
+            race_time=curr_race_time,
+            distance=int(curr_race_dist) if curr_race_dist.isdigit() else 1200,
+            field_size=len(results),
+            race_type=curr_race_class,
+            race_horses=race_horses,
+        )
+        st.code(table_str, language="text")
+
+    with st.expander("⭐ Value Bets & Longshot Summary (Meeting-Wide)"):
+        st.code(generate_value_bets_block(all_results), language="text")
+        st.code(generate_longshots_block(all_results), language="text")
+
+    with st.expander("🔬 Raw Extracted JSON Debug Panel"):
+        if extraction:
+            st.markdown(f"**Confidence:** `{extraction.confidence_label} ({int(extraction.confidence * 100)}%)` | **Pages Read:** `{extraction.pages_read}`")
+            if extraction.warnings:
+                st.markdown("**Warnings:**")
+                for w in extraction.warnings:
+                    st.write(f"• {w}")
+            st.markdown("**Extracted Horses JSON:**")
+            raw_list = [dataclasses.asdict(h) for h in race_horses if hasattr(h, "__dataclass_fields__")]
+            st.json(raw_list if raw_list else [str(h) for h in race_horses])
+
+
+# ─── Main Application Workflow ────────────────────────────────────────────────
+def main():
     uploaded_file, process_clicked = render_sidebar()
 
-    # ── Bug 7: File identity tracking — detect new/changed uploads
+    # Track uploaded file identity
     if uploaded_file is not None:
         file_id = f"{uploaded_file.name}_{uploaded_file.size}"
         if file_id != st.session_state.get("_last_file_id"):
             reset_race_state()
             st.session_state._last_file_id = file_id
 
-    # ── Process trigger
+    # Extraction Trigger
     if process_clicked:
         success = run_extraction(uploaded_file, st.session_state.demo_mode)
         if success:
-            st.session_state.processed = False   # reset so odds can be entered
-            # Force a full rerun so the sidebar immediately reflects the new races
-            # and the main view shows only the new data with no stale state.
+            st.session_state.processed = False
             st.rerun()
 
-    # ── If we have horses, show preview + odds input
-    horses     = [
-        h for h in st.session_state.horses
-        if hasattr(h, "horse") and isinstance(h.horse, str) and len(h.horse) > 2
-    ]
-    extraction = st.session_state.extraction
+    # Verify horses loaded
+    all_races = st.session_state.get("all_races", {})
+    current_race = st.session_state.get("current_race", 1)
+    extraction = st.session_state.get("extraction")
 
-    if not horses:
-        # Landing state
-        col_l, col_r = st.columns(2)
-        with col_l:
-            st.markdown("""
-            <div class="info-banner">
-              👋 <strong>Welcome!</strong> Upload a PhotoForm PDF in the sidebar and click
-              <strong>Process Race</strong> to get started.<br><br>
-              Or enable <strong>Demo Mode</strong> to explore with a sample race.
-            </div>
-            """, unsafe_allow_html=True)
-        with col_r:
-            st.markdown("""
-            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
-                        border-radius:12px; padding:1.25rem;">
-              <div style="font-size:0.8rem; color:#8892b0; margin-bottom:0.75rem;">FEATURES</div>
-              <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.88rem; color:#c9d1e0;">
-                <div>📄 PDF extraction from SA PhotoForm race cards</div>
-                <div>🤖 ML calibration model (GBM + isotonic)</div>
-                <div>📐 Rule-based scoring v3.8 (draw, form, jockey, trainer, weight)</div>
-                <div>💹 EV = prob × (odds − 1) − (1 − prob)</div>
-                <div>✅ Automatic value bet detection</div>
-                <div>📊 Interactive probability & EV charts</div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-        return
-
-    # ── Resolve current race's horses from all_races
-    all_races     = st.session_state.get("all_races", {})
-    current_race  = st.session_state.get("current_race", 1)
-
-    # Bug 3: all_races is the SINGLE SOURCE OF TRUTH.
-    # Never re-derive it from the flat 'horses' list — that caused single-race
-    # re-grouping that erased all other races.
     if not all_races:
-        st.warning("⚠️ No race data loaded. Please upload a PDF and click Process Race.")
+        # Empty / Welcome State
+        st.markdown("""
+        <div style="background-color:var(--bg-card); border:1px solid var(--border-subtle); border-radius:14px; padding:2.5rem; text-align:center; max-width:800px; margin:2rem auto;">
+          <div style="font-size:3rem; margin-bottom:1rem;">🏇</div>
+          <div style="font-family:'Outfit',sans-serif; font-size:1.85rem; font-weight:800; color:#FFFFFF; margin-bottom:0.5rem;">
+            SA Quant Racing Intelligence Terminal
+          </div>
+          <div style="color:var(--text-secondary); font-size:0.95rem; line-height:1.6; margin-bottom:1.75rem;">
+            Upload an official SA Computaform / PhotoForm PDF in the sidebar or toggle <strong>Demo Race Card</strong> to inspect probability forecasts, Expected Value calculations, and full exotic intelligence.
+          </div>
+          <div style="display:inline-flex; gap:12px; font-size:0.8rem; color:var(--text-muted);">
+            <span>✔ Harville Exotics</span> ·
+            <span>✔ Model Calibration</span> ·
+            <span>✔ Value Overlay Detection</span> ·
+            <span>✔ Multi-Race Permutations</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
         return
 
     race_horses = all_races.get(current_race, [])
     race_horses = [h for h in race_horses if hasattr(h, "horse") and isinstance(h.horse, str) and len(h.horse) > 2]
 
     if not race_horses:
-        st.warning(f"⚠️ No horses found for Race {current_race}. Please use the sidebar to select a race.")
+        st.warning(f"⚠️ No horse data found for Race {current_race}. Select an alternative race in the sidebar.")
         return
 
-    # ── Race Header & Preview
-    render_race_header(current_race)
-    render_race_preview(race_horses, extraction)
+    # Top Compact Race Overview Bar
+    render_race_overview_bar(current_race)
 
-    st.markdown("---")
+    # Review & Adjust Odds (Collapsible)
+    odds_map = render_odds_editor(race_horses)
 
-    # ── Odds input
-    odds_map = render_odds_input(race_horses)
+    # Prediction Execution Trigger
+    col_run, col_status = st.columns([1, 2])
+    with col_run:
+        gen_clicked = st.button("🚀 Generate Predictions", type="primary", use_container_width=True)
 
-    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+    auto_run = st.session_state.demo_mode and not st.session_state.processed
+    if gen_clicked or auto_run or (st.session_state.processed and st.session_state.get("predictions")):
+        with st.spinner("🤖 Executing quantitative models across meeting races..."):
+            venue = st.session_state.get("venue_selector", "Fairview")
+            surface = st.session_state.get("surface_selector", "Turf")
+            distance = int(st.session_state.get("distance_selector", 1200))
+            race_class = st.session_state.get("race_class_selector", "Stakes")
+            model_mode = st.session_state.get("model_mode_selector", "Greyville Poly v3.13 ★")
 
-    col_gen, _ = st.columns([1, 3])
-    with col_gen:
-        gen_clicked = st.button("🚀 Generate Predictions", use_container_width=True)
-
-    if gen_clicked or (st.session_state.processed and st.session_state.get("predictions")):
-        with st.spinner("🤖 Running predictions meeting-wide..."):
-            venue      = st.session_state.get("venue_selector",       "Greyville")
-            surface    = st.session_state.get("surface_selector",     "Polytrack")
-            distance   = int(st.session_state.get("distance_selector", 1200))
-            race_class = st.session_state.get("race_class_selector",  "Stakes")
-            model_mode = st.session_state.get("model_mode_selector",  "Greyville Poly v3.13 ★")
-
-            # Bug 2: ALWAYS reset results dict before generating predictions.
-            # Previously this guard never fired (key always exists from _init_state),
-            # so stale races from previous uploads persisted in all_results.
             st.session_state.all_results = {}
 
-            # Run predictions for ALL races in the meeting
             for r_num, r_horses in all_races.items():
-                # Ensure every horse in r_horses has valid forecast_odds
                 for h in r_horses:
                     if hasattr(h, "forecast_odds"):
                         try:
@@ -1660,26 +1803,23 @@ def main():
                         except (ValueError, TypeError):
                             h["forecast_odds"] = 10.0
 
-                # Determine correct distance
                 h_dist = r_horses[0].get("distance", distance) if hasattr(r_horses[0], "get") else getattr(r_horses[0], "distance", distance)
                 try:
                     h_dist = int(h_dist)
                 except (ValueError, TypeError):
                     h_dist = distance
 
-                # Map current odds overrides (only for current race)
                 r_odds_map = odds_map if r_num == current_race else {}
 
-                # Run predicting engine
                 if "v3.11" in model_mode:
                     race_context = {
-                        "distance":   h_dist,
-                        "surface":    "Turf",
-                        "race_type":  f"Race {r_num}",
-                        "venue":      "Turffontein",
-                        "odds_map":   r_odds_map,
+                        "distance": h_dist,
+                        "surface": "Turf",
+                        "race_type": f"Race {r_num}",
+                        "venue": "Turffontein",
+                        "odds_map": r_odds_map,
                     }
-                    r_results, r_field_size = run_race_v311_turffontein(r_horses, race_context)
+                    r_results, _ = run_race_v311_turffontein(r_horses, race_context)
                 else:
                     r_results = predict(
                         horses=r_horses,
@@ -1694,288 +1834,38 @@ def main():
                 st.session_state.all_results[r_num] = r_results
 
             st.session_state.predictions = st.session_state.all_results.get(current_race, [])
-            st.session_state.field_size  = len(race_horses)
-            st.session_state.processed   = True
+            st.session_state.field_size = len(race_horses)
+            st.session_state.processed = True
 
-        # ─── MAIN COLUMN GRID (Left Main Panel, Right Statistics Panel) ─────────
-        results = st.session_state.get("predictions", [])
-        all_results = st.session_state.get("all_results", {})
-        
-        col_main, col_right = st.columns([3, 1])
+    results = st.session_state.get("predictions", [])
+    all_results = st.session_state.get("all_results", {})
 
-        with col_main:
-            # 1. Dynamic Race Header Badges
-            render_race_header(current_race)
+    if results:
+        # Featured Selection Hero Card
+        render_featured_prediction(results, race_horses)
 
-            # 2. Best Bet & EV Side-by-Side Cards
-            top_horse = results[0] if results else None
-            top_prob_val = (top_horse.probability if hasattr(top_horse, 'probability') else top_horse.get('probability', 0)) * 100 if top_horse else 0
-            top_odds_val = (top_horse.odds if hasattr(top_horse, 'odds') else top_horse.get('odds', 0)) if top_horse else 0
-            top_ev_val   = (top_horse.ev if hasattr(top_horse, 'ev') else top_horse.get('ev', 0)) if top_horse else 0
+        # Tabbed Workspace: Clean, spacious, progressive disclosure
+        tab_rankings, tab_exotics, tab_analytics, tab_export = st.tabs([
+            "🏆 Race Rankings & Overlays",
+            "🧬 Exotics Intelligence",
+            "📊 Quantitative Analytics",
+            "📋 Terminal Export & Diagnostics"
+        ])
 
-            # Find matching Horse object for trainer/runs info
-            top_matching = next((h for h in race_horses if (h.get("horse", "") if hasattr(h, "get") else getattr(h, "horse", "")) == (top_horse.horse if top_horse else "")), None)
-            top_runs = top_matching.get("runs", 0) if hasattr(top_matching, "get") else getattr(top_matching, "runs", 0) if top_matching else 0
-            top_trainer = top_horse.trainer if top_horse else "Unknown"
+        with tab_rankings:
+            render_rankings_table(results, race_horses)
+            render_value_bets_panel(results)
 
-            col_bb, col_ev = st.columns(2)
-            with col_bb:
-                st.markdown(f"""
-<div class="card-best-bet">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
-    <span style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--gold); letter-spacing:0.07em;">⭐ TOP PREDICTION</span>
-    <span style="background:rgba(212,169,42,0.15); color:var(--gold); font-size:10px; font-weight:700; padding:2px 6px; border-radius:12px;">{top_prob_val:.1f}% Win Prob</span>
-  </div>
-  <div style="font-size:1.6rem; font-weight:900; color:#fff; font-family:'Outfit',sans-serif; margin-bottom:0.25rem;">
-    #{top_horse.draw if top_horse else 0} {top_horse.horse if top_horse else "N/A"}
-  </div>
-  <div style="color:var(--muted-foreground); font-size:0.8rem; margin-bottom:1rem;">
-     Trainer: {top_trainer} · Runs: {top_runs}
-  </div>
-  <div style="display:flex; gap:1.5rem; border-top:1px dashed rgba(255,255,255,0.06); padding-top:0.75rem;">
-    <div>
-      <div style="font-size:12px; color:var(--muted-foreground);">Odds</div>
-      <div style="font-size:1.1rem; font-weight:700; color:var(--gold);">{top_odds_val:.2f}</div>
-    </div>
-    <div>
-      <div style="font-size:12px; color:var(--muted-foreground);">Exp. Value (EV)</div>
-      <div style="font-size:1.1rem; font-weight:700; color:{'var(--green-win)' if top_ev_val > 0 else 'var(--red-loss)'};">{top_ev_val:+.3f}</div>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+        with tab_exotics:
+            render_exotics_intelligence(results, all_results, current_race)
 
-            with col_ev:
-                # EV summary table/grid of all races
-                grid_html = ""
-                for r in sorted(all_races.keys()):
-                    r_results = all_results.get(r, [])
-                    if r_results:
-                        r_top = r_results[0]
-                        r_top_ev = r_top.ev if hasattr(r_top, "ev") else r_top.get("ev", 0.0)
-                        bg = "rgba(34,197,94,0.15)" if r_top_ev > 0.05 else "rgba(255,255,255,0.03)"
-                        border_c = "var(--green-win)" if r_top_ev > 0.05 else "var(--border)"
-                        text_c = "var(--green-win)" if r_top_ev > 0.05 else "var(--muted-foreground)"
-                        grid_html += f"""<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:36px; height:36px; background:{bg}; border:1px solid {border_c}; border-radius:6px; font-size:0.7rem; font-weight:700; color:{text_c}; cursor:pointer;" title="Race {r} Top Pick EV: {r_top_ev:+.2f}">
-  R{r}
-  <span style="font-size:8px; font-weight:500;">{r_top_ev:+.1f}</span>
-</div>"""
-                    else:
-                        grid_html += f"""<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; width:36px; height:36px; background:rgba(255,255,255,0.01); border:1px solid var(--border); border-radius:6px; font-size:0.7rem; font-weight:700; color:rgba(255,255,255,0.15);">
-  R{r}
-</div>"""
+        with tab_analytics:
+            render_quantitative_analytics(results, all_results)
 
-                st.markdown(f"""
-<div class="card-ev" style="height:100%;">
-  <div>
-    <div style="font-size:11px; font-weight:800; text-transform:uppercase; color:var(--muted-foreground); letter-spacing:0.07em; margin-bottom:0.5rem;">
-      ⚖️ EXPECTED VALUE (EV) MEETING MATRIX
-    </div>
-    <div style="display:flex; flex-wrap:wrap; gap:8px;">
-      {grid_html}
-    </div>
-  </div>
-  <div style="background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.2); border-radius:6px; padding:6px 10px; font-size:0.75rem; color:#f59e0b; margin-top:0.75rem;">
-    ⚠ Positive EV indicates an overlay (value bet) against market forecast price.
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-            # 3. Custom HTML Rankings Table
-            st.markdown('<div style="font-size:1.1rem; font-weight:700; color:#fff; margin:1.5rem 0 0.5rem;">🏆 Race Rankings Table</div>', unsafe_allow_html=True)
-
-            table_rows = ""
-            for p in results:
-                # Rank Medal
-                rank_lbl = str(p.rank)
-                row_cls = ""
-                if p.rank == 1:
-                    rank_lbl = "🏆 1"
-                    row_cls = "row-rank-1"
-                elif p.rank == 2:
-                    rank_lbl = "🥈 2"
-                    row_cls = "row-rank-2"
-                elif p.rank == 3:
-                    rank_lbl = "🥉 3"
-                    row_cls = "row-rank-3"
-
-                # Form figures styling
-                matching = next((h for h in race_horses if (h.get("horse", "") if hasattr(h, "get") else getattr(h, "horse", "")) == p.horse), None)
-                form_figs = matching.form_figures if hasattr(matching, "form_figures") else []
-                form_html = ""
-                for fig in form_figs[-5:]:
-                    fig_str = str(fig) if fig != 99 else "0"
-                    bg_c = "var(--gold)" if fig_str == "1" else "var(--green-win)" if fig_str in ("2", "3") else "rgba(255,255,255,0.05)"
-                    form_html += f'<span class="form-box" style="background:{bg_c};">{fig_str}</span>'
-
-                if not form_html:
-                    form_html = '<span style="color:var(--muted-foreground); font-size:0.75rem;">N/A</span>'
-
-                # Win / Place Value Signal tags
-                signal_tags = ""
-                if p.value_bet:
-                    signal_tags += '<span class="signal-tag" style="background:rgba(34,197,94,0.15); color:var(--green-win); border:1px solid rgba(34,197,94,0.3);">VALUE WIN</span> '
-                if p.odds >= 10.0 and p.ev > 0.0:
-                    signal_tags += '<span class="signal-tag" style="background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3);">LONGSHOT</span> '
-
-                weight_carried = matching.get("weight", 56.0) if hasattr(matching, "get") else getattr(matching, "weight", 56.0) if matching else 56.0
-
-                table_rows += f"""<tr class="{row_cls}">
-  <td style="font-weight:700;">{rank_lbl}</td>
-  <td>#{p.draw}</td>
-  <td>
-    <div style="font-weight:700; color:#fff; font-size:0.92rem;">{p.horse}</div>
-    <div style="font-size:0.75rem; color:var(--muted-foreground);">{p.trainer}</div>
-  </td>
-  <td>{p.jockey}</td>
-  <td>{weight_carried:.1f} kg</td>
-  <td>{form_html}</td>
-  <td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--gold);">{p.odds:.2f}</td>
-  <td style="font-family:'JetBrains Mono',monospace; font-weight:700;">{p.probability * 100:.1f}%</td>
-  <td style="font-family:'JetBrains Mono',monospace; font-weight:700; color:{'var(--green-win)' if p.ev > 0 else 'var(--red-loss)'};">{p.ev:+.3f}</td>
-  <td>{signal_tags}</td>
-</tr>"""
-
-            st.markdown(f"""
-<table class="data-table-v313">
-  <thead>
-    <tr>
-      <th style="width:60px;">RNK</th>
-      <th style="width:50px;">DR</th>
-      <th>HORSE / TRAINER</th>
-      <th>JOCKEY</th>
-      <th style="width:70px;">WGT</th>
-      <th>FORM (RECENT)</th>
-      <th style="width:65px;">ODDS</th>
-      <th style="width:75px;">PROB</th>
-      <th style="width:75px;">EV</th>
-      <th>SIGNALS</th>
-    </tr>
-  </thead>
-  <tbody>
-    {table_rows}
-  </tbody>
-</table>
-""", unsafe_allow_html=True)
-
-            # Monospace string tables for copy/paste
-            races_meta_dict = st.session_state.get("races_meta", {})
-            curr_meta_data  = races_meta_dict.get(current_race, {})
-            curr_race_time  = curr_meta_data.get("race_time", "")
-            raw_dist        = curr_meta_data.get("distance", "")
-            curr_race_dist  = str(raw_dist).replace("m", "").strip() if raw_dist else str(st.session_state.get("distance_selector", 1200))
-            curr_race_class = st.session_state.get("race_class_selector", "Stakes")
-
-            with st.expander("📋 Copyable Plain-Text Tables"):
-                table_str = generate_v311_table_string(
-                    results=results,
-                    race_num=current_race,
-                    race_time=curr_race_time if curr_race_time else "12:00",
-                    distance=curr_race_dist,
-                    field_size=st.session_state.get("field_size", len(results)),
-                    race_type=curr_race_class,
-                    race_horses=race_horses,
-                )
-                st.code(table_str, language="text")
-
-                st.markdown("### ⭐ Value Bets & Longshot Summary")
-                st.code(generate_value_bets_block(all_results), language="text")
-                st.code(generate_longshots_block(all_results), language="text")
-
-            # Exotics Intelligence Section
-            try:
-                render_exotics_intelligence(results, all_results, current_race)
-                from predictor import Prediction as _Pred
-                pred_objs = [p for p in results if isinstance(p, _Pred)]
-                if pred_objs:
-                    render_model_debug(pred_objs)
-            except Exception as e:
-                logger.exception("Error rendering exotics intelligence: %s", e)
-
-        with col_right:
-            # 1. Circular SVG Confidence Gauges
-            # Calculate average EV / confidence
-            avg_ev = sum(p.ev for p in results) / len(results) if results else 0
-            all_r_evs = [p_item.ev for r_k, r_list in all_results.items() for p_item in r_list]
-            meeting_avg_ev = sum(all_r_evs) / len(all_r_evs) if all_r_evs else 0
-
-            # SVG Circle strokes (dashoffset = 220 - (220 * pct / 100))
-            this_race_pct = min(max(int((top_prob_val / 50.0) * 100), 0), 100) # Norm relative to a 50% max win prob
-            meet_avg_pct  = min(max(int((meeting_avg_ev + 0.15) / 0.3 * 100), 0), 100) # Norm EV -0.15 to +0.15 as 0 to 100%
-
-            offset_race = 220 - (220 * this_race_pct / 100)
-            offset_meet = 220 - (220 * meet_avg_pct / 100)
-
-            st.markdown(f"""
-            <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1rem; margin-bottom:1rem; text-align:center;">
-              <div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">
-                🎯 CONFIDENCE INDEX
-              </div>
-              <div style="display:flex; justify-content:space-around; align-items:center;">
-                <div>
-                  <svg viewBox="0 0 36 36" class="circular-chart" style="stroke:var(--gold);">
-                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    <path class="circle" stroke-dasharray="{this_race_pct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    <text x="18" y="20.3" class="percentage">{top_prob_val:.0f}%</text>
-                  </svg>
-                  <div style="font-size:9px; font-weight:700; color:var(--muted-foreground); text-transform:uppercase;">This Race</div>
-                </div>
-                <div>
-                  <svg viewBox="0 0 36 36" class="circular-chart" style="stroke:var(--green-win);">
-                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    <path class="circle" stroke-dasharray="{meet_avg_pct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    <text x="18" y="20.3" class="percentage">{meeting_avg_ev:+.2f}</text>
-                  </svg>
-                  <div style="font-size:9px; font-weight:700; color:var(--muted-foreground); text-transform:uppercase;">Meeting EV</div>
-                </div>
-              </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # 2. Value Bets List Panel
-            v_bets_all = []
-            for r_k in sorted(all_results.keys()):
-                for pred_item in all_results[r_k]:
-                    if pred_item.value_bet:
-                        v_bets_all.append((r_k, pred_item))
-
-            vb_items = []
-            for r_k, vb in v_bets_all:
-                vb_items.append(
-                    f'<div style="display:flex; justify-content:space-between; align-items:center; background:rgba(34,197,94,0.04); border:1px solid rgba(34,197,94,0.15); border-radius:6px; padding:8px 10px; font-size:0.8rem; color:var(--foreground);">'
-                    f'<div><span style="font-weight:900; color:var(--green-win); margin-right:4px;">R{r_k}</span><span style="font-weight:700;">#{vb.draw} {vb.horse}</span></div>'
-                    f'<div style="text-align:right;"><div style="font-weight:700; color:var(--gold);">{vb.odds:.2f}</div><div style="font-size:9px; color:var(--green-win); font-family:\'JetBrains Mono\',monospace;">{vb.ev:+.2f} EV</div></div>'
-                    f'</div>'
-                )
-
-            if not vb_items:
-                vb_content = '<div style="color:var(--muted-foreground); font-size:0.8rem; text-align:center; padding:1rem;">No value bets detected yet. Generate predictions to find value opportunities.</div>'
-            else:
-                vb_content = "".join(vb_items)
-
-            vb_panel_html = (
-                f'<div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem; margin-bottom:1rem;">'
-                f'<div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">⭐ DETECTED VALUE BETS</div>'
-                f'<div style="display:flex; flex-direction:column; gap:8px;">{vb_content}</div>'
-                f'</div>'
-            )
-            st.markdown(vb_panel_html, unsafe_allow_html=True)
-
-            # 3. Permutations / Meeting Stats Summary Card
-            total_races_run = len(all_results)
-            tot_value_bets = len(v_bets_all)
-            ev_color_class = "var(--green-win)" if meeting_avg_ev > 0 else "var(--red-loss)"
-            summary_panel_html = (
-                f'<div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:1.25rem;">'
-                f'<div style="font-size:10px; font-weight:800; color:var(--muted-foreground); letter-spacing:0.07em; text-transform:uppercase; margin-bottom:0.75rem;">📊 MEETING STATS SUMMARY</div>'
-                f'<div style="display:flex; flex-direction:column; gap:8px; font-size:0.82rem;">'
-                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Total Races Analyzed</span><span style="font-weight:700; color:#fff;">{total_races_run} of 8</span></div>'
-                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Total Value Bets Detected</span><span style="font-weight:700; color:var(--green-win);">{tot_value_bets}</span></div>'
-                f'<div style="display:flex; justify-content:space-between;"><span style="color:var(--muted-foreground);">Meeting Avg Expected Value</span><span style="font-weight:700; color:{ev_color_class};">{meeting_avg_ev:+.3f}</span></div>'
-                f'</div>'
-                f'</div>'
-            )
-            st.markdown(summary_panel_html, unsafe_allow_html=True)
+        with tab_export:
+            render_terminal_export_and_diagnostics(results, all_results, current_race, race_horses, extraction)
+    else:
+        st.info("💡 Click **'Generate Predictions'** above to compute win probabilities, Expected Value, and exotic betting intelligence.")
 
 
 if __name__ == "__main__":
