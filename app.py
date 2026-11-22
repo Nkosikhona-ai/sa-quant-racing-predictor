@@ -235,49 +235,56 @@ html, body, [class*="css"], .stApp {
 
 .terminal-data-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
     font-size: 0.85rem;
     color: var(--text-primary);
     text-align: left;
+    border: none !important;
 }
 
+div[data-testid="stMarkdownContainer"] .terminal-data-table th,
 .terminal-data-table th {
-    background-color: var(--bg-sidebar);
-    color: var(--text-secondary);
+    background-color: var(--bg-sidebar) !important;
+    color: var(--text-secondary) !important;
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 700;
     padding: 12px 14px;
-    border-bottom: 1px solid var(--border-subtle);
+    border: none !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
     white-space: nowrap;
 }
 
+div[data-testid="stMarkdownContainer"] .terminal-data-table td,
 .terminal-data-table td {
     padding: 12px 14px;
-    border-bottom: 1px solid var(--border-subtle);
+    border: none !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
     vertical-align: middle;
 }
 
 .terminal-data-table tr {
     transition: background-color 0.15s ease;
+    border: none !important;
 }
 
 .terminal-data-table tr:hover {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: rgba(255, 255, 255, 0.02) !important;
 }
 
 .terminal-data-table tr.top-pick-row {
-    background-color: rgba(229, 173, 36, 0.06);
-    border-left: 3px solid var(--accent-gold);
+    background-color: rgba(229, 173, 36, 0.06) !important;
+    border-left: 3px solid var(--accent-gold) !important;
 }
 
 .terminal-data-table tr.rank-2-row {
-    border-left: 3px solid rgba(192, 192, 192, 0.4);
+    border-left: 3px solid rgba(192, 192, 192, 0.4) !important;
 }
 
 .terminal-data-table tr.rank-3-row {
-    border-left: 3px solid rgba(205, 127, 50, 0.4);
+    border-left: 3px solid rgba(205, 127, 50, 0.4) !important;
 }
 
 /* ─── Form Boxes ───────────────────────────────────────────────────── */
